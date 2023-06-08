@@ -16,7 +16,7 @@ def setup_mongo_connection(
     if host == "mongo-mock":
         import mongomock
 
-        client = mongomock.MongoClient()
+        client: MongoClient = mongomock.MongoClient()
     else:
         if username:
             connection_string = f"mongodb+srv://{username}:{password}@{host}/{database}"

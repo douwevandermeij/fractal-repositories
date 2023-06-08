@@ -9,6 +9,7 @@ from google.cloud.firestore_v1 import Client, Query
 from google.cloud.firestore_v1.base_collection import BaseCollectionReference
 from google.cloud.firestore_v1.base_query import BaseQuery
 
+from fractal_repositories.core.entity import Entity
 from fractal_repositories.core.repositories import EntityType, Repository
 
 
@@ -53,7 +54,7 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
     https://github.com/GoogleCloudPlatform/python-docs-samples/blob/46fa5a588858021ea32350584a4ee178cd7c1f33/firestore/cloud-client/snippets.py#L62-L66
     """
 
-    entity = EntityType
+    entity: EntityType = Entity
 
     def __init__(self, collection: str = "", *, collection_prefix: str = ""):
         super(FirestoreRepositoryMixin, self).__init__()

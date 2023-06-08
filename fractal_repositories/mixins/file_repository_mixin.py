@@ -51,12 +51,12 @@ class FileRepositoryMixin(RootDirMixin, InMemoryRepositoryMixin[EntityType]):
         raise self._object_not_found()
 
     def remove_one(self, specification: Specification):
+        super().remove_one(specification)
         entities = list(self.find(NotSpecification(specification)))
         with open(self._filename, "w") as fp:
             fp.writelines(
                 [json.dumps(e.asdict(), cls=EnhancedEncoder) + "\n" for e in entities]
             )
-        super().remove_one(specification)
 
 
 class FileFileRepositoryMixin(RootDirMixin, FileRepository):

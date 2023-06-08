@@ -5,9 +5,7 @@ from typing import Any, Dict
 
 
 @dataclass
-class Entity:
-    id: Any
-
+class Model:
     @classmethod
     def clean(cls, **kwargs):
         field_names = set(f.name for f in fields(cls))
@@ -46,3 +44,8 @@ class Entity:
     @staticmethod
     def calculated_fields():
         return []
+
+
+@dataclass
+class Entity(Model):
+    id: Any
