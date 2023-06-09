@@ -9,12 +9,12 @@ def mongo_test_model():
     from fractal_repositories.core.entity import Entity
 
     @dataclass
-    class TestModel(Entity):
+    class TestModelMongo(Entity):
         id: str
         name: str = "test"
         description: str = "test"
 
-    return TestModel
+    return TestModelMongo
 
 
 @pytest.fixture

@@ -28,7 +28,7 @@ class Model:
         )
 
         def _asdict(v):
-            if isinstance(v, Entity):
+            if issubclass(type(v), (Model, Entity)):
                 return v.asdict(skip_types=skip_types)
             elif isinstance(v, list) and list not in skip_types:
                 return [_asdict(i) for i in v]

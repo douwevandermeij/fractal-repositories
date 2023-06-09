@@ -1,15 +1,14 @@
 from datetime import date
-from typing import Iterator, Optional, Union
+from typing import Iterable, Iterator, Union
 
 from fractal_specifications.contrib.google_firestore.specifications import (
     FirestoreSpecificationBuilder,
 )
 from fractal_specifications.generic.specification import Specification
-from google.cloud.firestore_v1 import Client, Query
+from google.cloud.firestore_v1 import Client, DocumentSnapshot, Query
 from google.cloud.firestore_v1.base_collection import BaseCollectionReference
 from google.cloud.firestore_v1.base_query import BaseQuery
 
-from fractal_repositories.core.entity import Entity
 from fractal_repositories.core.repositories import EntityType, Repository
 
 
@@ -54,14 +53,12 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
     https://github.com/GoogleCloudPlatform/python-docs-samples/blob/46fa5a588858021ea32350584a4ee178cd7c1f33/firestore/cloud-client/snippets.py#L62-L66
     """
 
-    entity: EntityType = Entity
-
     def __init__(self, collection: str = "", *, collection_prefix: str = ""):
         super(FirestoreRepositoryMixin, self).__init__()
 
         client: Client = FirestoreClient().get_firestore_client()
-        if not collection:
-            collection = self.entity.__name__
+        if not collection and self.entity:
+            collection = self.entity.__name__  # type: ignore
         if collection_prefix:
             collection = "-".join([collection_prefix, collection])
         self.collection = client.collection(collection.lower().replace(" ", "-"))
@@ -82,10 +79,15 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
         raise self._object_not_found()
 
     def remove_one(self, specification: Specification):
-        entity = self.find_one(specification)
-        self.collection.document(entity.id).delete()
+        if entity := self.find_one(specification):
+            self.collection.document(entity.id).delete()
 
-    def find_one(self, specification: Specification) -> Optional[EntityType]:
+    @staticmethod
+    def _get_collection_stream(collection) -> Iterable[DocumentSnapshot]:
+        for i in collection.stream():
+            yield i
+
+    def find_one(self, specification: Specification) -> EntityType:
         _filter = FirestoreSpecificationBuilder.build(specification)
         collection: Union[BaseCollectionReference, BaseQuery] = self.collection
         if _filter:
@@ -94,9 +96,14 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
                     collection = collection.where(*f)
             else:
                 collection = collection.where(*_filter)
+
+        def _spec_filter(i: DocumentSnapshot):
+            if data := i.to_dict():
+                return specification.is_satisfied_by(AttrDict(**data))
+
         for doc in filter(
-            lambda i: specification.is_satisfied_by(AttrDict(**i.to_dict())),
-            collection.stream(),
+            _spec_filter,
+            self._get_collection_stream(collection),
         ):
             return self.entity.from_dict(doc.to_dict())
         raise self._object_not_found()
@@ -129,11 +136,11 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
         if limit:
             if offset and (last := list(collection.limit(offset).stream())[-1]):
                 collection = collection.start_after(
-                    {order_by: last.to_dict().get(order_by)}
+                    {order_by: (last.to_dict() or {}).get(order_by)}
                 ).limit(limit)
             else:
                 collection = collection.limit(limit)
-        for doc in collection.stream():
+        for doc in self._get_collection_stream(collection):
             yield self.entity.from_dict(doc.to_dict())
 
     def is_healthy(self) -> bool:

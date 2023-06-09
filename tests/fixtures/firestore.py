@@ -9,12 +9,12 @@ def firestore_test_model():
     from fractal_repositories.core.entity import Entity
 
     @dataclass
-    class TestModel(Entity):
+    class TestModelFirestore(Entity):
         id: str
         name: str = "test"
         description: str = "test"
 
-    return TestModel
+    return TestModelFirestore
 
 
 @pytest.fixture
