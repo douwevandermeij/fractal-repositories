@@ -27,7 +27,8 @@ class InMemoryRepositoryMixin(Repository[EntityType]):
 
     def remove_one(self, specification: Specification):
         if obj := self.find_one(specification):
-            del self.entities[obj.id]
+            if obj.id in self.entities:
+                del self.entities[obj.id]
 
     @property
     def _get_entities(self) -> Iterator[EntityType]:
