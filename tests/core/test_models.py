@@ -53,7 +53,7 @@ def nested_model_instance(model_instance):
 
 
 def test_model(model_instance, now, decimal):
-    assert model_instance.asdict() == {
+    assert model_instance.asdict(use_timezone_z=False) == {
         "id": "1",
         "string": "name",
         "number": 1,
@@ -72,7 +72,7 @@ def test_model_update(model_instance, now, decimal):
     }
     assert model_instance.update(some_new_values).asdict() == {
         **some_new_values,
-        "now": now.isoformat(),
+        "now": now.isoformat().replace("+00:00", "Z"),
         "decimal_number": f"{decimal:.2f}",
     }
 
@@ -89,7 +89,7 @@ def test_model_skip_types(model_instance, now, decimal):
 
 
 def test_model_nested(nested_model_instance, now, decimal):
-    assert nested_model_instance.asdict() == {
+    assert nested_model_instance.asdict(use_timezone_z=False) == {
         "id": "1",
         "nested_list": [
             {

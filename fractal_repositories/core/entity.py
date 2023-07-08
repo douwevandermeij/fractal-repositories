@@ -1,5 +1,5 @@
 from dataclasses import dataclass, fields
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any, Dict
 
@@ -20,7 +20,7 @@ class Model:
         current.update(model)
         return self.from_dict(current)
 
-    def asdict(self, *, skip_types=None):
+    def asdict(self, *, skip_types=None, use_timezone_z=True):
         if skip_types is None:
             skip_types = []
         field_names = set(
@@ -29,13 +29,17 @@ class Model:
 
         def _asdict(v):
             if issubclass(type(v), (Model, Entity)):
-                return v.asdict(skip_types=skip_types)
+                return v.asdict(skip_types=skip_types, use_timezone_z=use_timezone_z)
             elif isinstance(v, list) and list not in skip_types:
                 return [_asdict(i) for i in v]
             elif isinstance(v, Decimal) and Decimal not in skip_types:
                 return f"{v:.2f}"
-            elif isinstance(v, date) and date not in skip_types:
-                return v.isoformat()
+            elif isinstance(v, (date, datetime)) and date not in skip_types:
+                return (
+                    v.isoformat().replace("+00:00", "Z")
+                    if use_timezone_z
+                    else v.isoformat()
+                )
             return v
 
         ret = {k: _asdict(v) for k, v in self.__dict__.items() if k in field_names}
