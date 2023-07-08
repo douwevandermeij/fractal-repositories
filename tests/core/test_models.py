@@ -72,7 +72,7 @@ def test_model_update(model_instance, now, decimal):
     }
     assert model_instance.update(some_new_values).asdict() == {
         **some_new_values,
-        "now": now.isoformat().replace("+00:00", "Z"),
+        "now": now.isoformat(),
         "decimal_number": f"{decimal:.2f}",
     }
 

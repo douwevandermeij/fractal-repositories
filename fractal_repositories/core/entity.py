@@ -20,7 +20,7 @@ class Model:
         current.update(model)
         return self.from_dict(current)
 
-    def asdict(self, *, skip_types=None, use_timezone_z=True):
+    def asdict(self, *, skip_types=None, use_timezone_z=False):
         if skip_types is None:
             skip_types = []
         field_names = set(
