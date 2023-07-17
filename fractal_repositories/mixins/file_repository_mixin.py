@@ -7,7 +7,7 @@ from fractal_specifications.generic.operators import NotSpecification
 from fractal_specifications.generic.specification import Specification
 
 from fractal_repositories.core.repositories import EntityType, FileRepository
-from fractal_repositories.exceptions import ObjectNotFoundException, RepositoryException
+from fractal_repositories.exceptions import ObjectNotFoundException
 from fractal_repositories.mixins.inmemory_repository_mixin import (
     InMemoryRepositoryMixin,
 )
@@ -29,7 +29,7 @@ class FileRepositoryMixin(RootDirMixin, InMemoryRepositoryMixin[EntityType]):
     @property
     def _get_entities(self) -> Iterator[EntityType]:
         if not os.path.exists(self._filename):
-            raise RepositoryException(f"Path '{self._filename}' doesn't exist.")
+            open(self._filename, "a").close()
         with open(self._filename, "r") as fp:
             for line in fp.readlines():
                 yield self.entity.from_dict(json.loads(line))

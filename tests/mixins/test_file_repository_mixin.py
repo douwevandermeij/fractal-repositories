@@ -112,7 +112,6 @@ def test_find_with_specification_empty(file_repository, an_object):
 
 
 def test_find_path_doesnt_exist(file_repository, mocker_os_path_exists_error):
-    from fractal_repositories.exceptions import RepositoryException
-
-    with pytest.raises(RepositoryException):
-        next(file_repository.find())
+    # with pytest.raises(RepositoryException):
+    #     next(file_repository.find())
+    assert list(file_repository.find()) == []
