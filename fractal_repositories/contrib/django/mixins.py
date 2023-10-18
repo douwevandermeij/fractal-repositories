@@ -43,7 +43,7 @@ class DjangoModelRepositoryMixin(Repository[EntityType]):
 
         direct_fields = [field_name(f) for f in self.django_model._meta.fields]
         for k, v in asdict(entity).items():
-            if type(v) == list:
+            if type(v) is list:
                 related_data[k] = v
             else:
                 if k in direct_fields:

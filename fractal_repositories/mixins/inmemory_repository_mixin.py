@@ -60,12 +60,12 @@ class InMemoryRepositoryMixin(Repository[EntityType]):
         else:
             entities = list(self._get_entities)
 
+        order_by = order_by or self.order_by
         reverse = False
         if order_by.startswith("-"):
             order_by = order_by[1:]
             reverse = True
 
-        order_by = order_by or self.order_by
         if order_by:
             entities = sorted(
                 entities, key=lambda i: getattr(i, order_by), reverse=reverse

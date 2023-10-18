@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Iterable, Iterator, Union
+from typing import Iterable, Iterator, Union, Optional
 
 from fractal_specifications.contrib.google_firestore.specifications import (
     FirestoreSpecificationBuilder,
@@ -110,7 +110,7 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
 
     def find(
         self,
-        specification: Specification = None,
+        specification: Optional[Specification] = None,
         *,
         offset: int = 0,
         limit: int = 0,

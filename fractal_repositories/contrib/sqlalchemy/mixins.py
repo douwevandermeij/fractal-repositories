@@ -332,9 +332,9 @@ class SqlAlchemyRepositoryMixin(
 
         with self:
             ret = self.session.query(entity_dao_class or self.entity_dao)
-        if type(filters) == dict:
+        if type(filters) is dict:
             ret = ret.filter_by(**filters)
-        if type(filters) == BooleanClauseList:
+        if type(filters) is BooleanClauseList:
             ret = ret.where(filters)
 
         if order_by:

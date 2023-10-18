@@ -1,4 +1,4 @@
-from typing import Dict, Iterator, Tuple
+from typing import Dict, Iterator, Tuple, Optional
 
 from fractal_specifications.contrib.mongo.specifications import (
     MongoSpecificationBuilder,
@@ -68,7 +68,7 @@ class MongoRepositoryMixin(Repository[EntityType]):
 
     def find(
         self,
-        specification: Specification = None,
+        specification: Optional[Specification] = None,
         *,
         offset: int = 0,
         limit: int = 0,

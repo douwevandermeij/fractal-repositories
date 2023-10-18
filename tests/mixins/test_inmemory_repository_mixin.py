@@ -80,6 +80,17 @@ def test_find_reverse(inmemory_repository, an_object, another_object):
     ]
 
 
+def test_find_reverse_default_reverse(inmemory_repository, an_object, another_object):
+    inmemory_repository.add(an_object)
+    inmemory_repository.add(another_object)
+
+    inmemory_repository.order_by = "-id"
+    assert [i.id for i in inmemory_repository.find()] == [
+        another_object.id,
+        an_object.id,
+    ]
+
+
 def test_find_limit(inmemory_repository, an_object, another_object):
     inmemory_repository.add(an_object)
     inmemory_repository.add(another_object)

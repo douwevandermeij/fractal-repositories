@@ -13,7 +13,7 @@ class FilterRepositoryMixin(Repository[EntityType], Generic[EntityType], ABC):
         sub_specification: Specification,
         *,
         pre_processor: Optional[Callable[[EntityType], EntityType]] = None,
-        specification: Specification = None,
+        specification: Optional[Specification] = None,
         offset: int = 0,
         limit: int = 0,
         order_by: str = "id",
