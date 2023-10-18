@@ -8,7 +8,7 @@ coverage:  ## Run tests with coverage
 
 deps:  ## Install dependencies
 	python -m pip install --upgrade pip
-	python -m pip install black coverage django firebase-admin flake8 flit fractal-specifications google-cloud-firestore isort mccabe mock-firestore mongomock mypy pylint pymongo pytest pytest-cov pytest-asyncio pytest-lazy-fixture pytest-mock 'sqlalchemy<2.0' tox tox-gh-actions pre-commit autoflake
+	python -m pip install -U black coverage django firebase-admin flake8 flit fractal-specifications google-cloud-firestore isort mccabe mock-firestore mongomock mypy pylint pymongo pytest pytest-cov pytest-asyncio pytest-lazy-fixture pytest-mock 'sqlalchemy<2.0' tox tox-gh-actions pre-commit autoflake
 	pre-commit install
 
 lint:  ## Lint and static-check

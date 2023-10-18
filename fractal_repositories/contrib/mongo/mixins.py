@@ -1,4 +1,4 @@
-from typing import Dict, Iterator, Tuple, Optional
+from typing import Dict, Iterator, Optional, Tuple
 
 from fractal_specifications.contrib.mongo.specifications import (
     MongoSpecificationBuilder,
@@ -74,6 +74,7 @@ class MongoRepositoryMixin(Repository[EntityType]):
         limit: int = 0,
         order_by: str = "",
     ) -> Iterator[EntityType]:
+        order_by = order_by or self.order_by
         direction = 1
         if order_by.startswith("-"):
             order_by = order_by[1:]
@@ -83,7 +84,6 @@ class MongoRepositoryMixin(Repository[EntityType]):
             MongoSpecificationBuilder.build(specification)
         )
 
-        order_by = order_by or self.order_by
         if order_by:
             collection = collection.sort({order_by: direction})
 

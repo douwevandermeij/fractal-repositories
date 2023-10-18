@@ -78,7 +78,13 @@ def test_model_update(model_instance, now, decimal):
 
 
 def test_model_skip_types(model_instance, now, decimal):
-    assert model_instance.asdict(skip_types=(list, date, Decimal,)) == {
+    assert model_instance.asdict(
+        skip_types=(
+            list,
+            date,
+            Decimal,
+        )
+    ) == {
         "id": "1",
         "string": "name",
         "number": 1,
@@ -105,7 +111,13 @@ def test_model_nested(nested_model_instance, now, decimal):
 
 
 def test_model_nested_skip_types(nested_model_instance, model_instance, now, decimal):
-    m = nested_model_instance.asdict(skip_types=(list, date, Decimal,))[
+    m = nested_model_instance.asdict(
+        skip_types=(
+            list,
+            date,
+            Decimal,
+        )
+    )[
         "nested_list"
     ][0]
     assert type(m) == type(model_instance)
@@ -113,7 +125,12 @@ def test_model_nested_skip_types(nested_model_instance, model_instance, now, dec
 
 
 def test_model_nested_skip_types_no_list(nested_model_instance, now, decimal):
-    assert nested_model_instance.asdict(skip_types=(date, Decimal,)) == {
+    assert nested_model_instance.asdict(
+        skip_types=(
+            date,
+            Decimal,
+        )
+    ) == {
         "id": "1",
         "nested_list": [
             {

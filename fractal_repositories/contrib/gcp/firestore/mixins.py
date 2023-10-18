@@ -1,5 +1,5 @@
 from datetime import date
-from typing import Iterable, Iterator, Union, Optional
+from typing import Iterable, Iterator, Optional, Union
 
 from fractal_specifications.contrib.google_firestore.specifications import (
     FirestoreSpecificationBuilder,
@@ -118,6 +118,7 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
     ) -> Iterator[EntityType]:
         _filter = FirestoreSpecificationBuilder.build(specification)
         direction = Query.ASCENDING
+        order_by = order_by or self.order_by
         if order_by.startswith("-"):
             order_by = order_by[1:]
             direction = Query.DESCENDING
@@ -129,7 +130,6 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
             else:
                 collection = collection.where(*_filter)
 
-        order_by = order_by or self.order_by
         if order_by:
             collection = collection.order_by(order_by, direction=direction)
 
