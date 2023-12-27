@@ -5,7 +5,7 @@ from fractal_specifications.contrib.google_firestore.specifications import (
     FirestoreSpecificationBuilder,
 )
 from fractal_specifications.generic.specification import Specification
-from google.cloud.firestore_v1 import Client, DocumentSnapshot, Query
+from google.cloud.firestore_v1 import Client, DocumentSnapshot, FieldFilter, Query
 from google.cloud.firestore_v1.base_collection import BaseCollectionReference
 from google.cloud.firestore_v1.base_query import BaseQuery
 
@@ -93,9 +93,9 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
         if _filter:
             if isinstance(_filter, list):
                 for f in _filter:
-                    collection = collection.where(*f)
+                    collection = collection.where(filter=FieldFilter(*f))
             else:
-                collection = collection.where(*_filter)
+                collection = collection.where(filter=FieldFilter(*_filter))
 
         def _spec_filter(i: DocumentSnapshot):
             if data := i.to_dict():
