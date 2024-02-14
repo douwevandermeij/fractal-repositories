@@ -126,9 +126,9 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
         if _filter:
             if isinstance(_filter, list):
                 for f in _filter:
-                    collection = collection.where(*f)
+                    collection = collection.where(filter=FieldFilter(*f))
             else:
-                collection = collection.where(*_filter)
+                collection = collection.where(filter=FieldFilter(*_filter))
 
         if order_by:
             collection = collection.order_by(order_by, direction=direction)
