@@ -35,6 +35,10 @@ class FirestoreClient(object):
 
             firebase_admin.initialize_app(cred)
             self.instance.firestore_client = firestore.client()
+            if hasattr(self.instance.firestore_client, "_firestore_api"):
+                self._firestore_api_internal = (
+                    self.instance.firestore_client._firestore_api
+                )  # trigger creation of a gRPC channel (singleton)
         return self.instance.firestore_client
 
 

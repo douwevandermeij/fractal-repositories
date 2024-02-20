@@ -7,8 +7,7 @@ def test_no_entity():
         InMemoryRepositoryMixin,
     )
 
-    class TestRepository(InMemoryRepositoryMixin[type(...)]):
-        ...
+    class TestRepository(InMemoryRepositoryMixin[type(...)]): ...
 
     from fractal_repositories.exceptions import RepositoryException
 
@@ -22,8 +21,7 @@ def test_find_one_not_found(an_object):
         InMemoryRepositoryMixin,
     )
 
-    class TestObjectNotFoundException(ObjectNotFoundException):
-        ...
+    class TestObjectNotFoundException(ObjectNotFoundException): ...
 
     class TestRepository(InMemoryRepositoryMixin[an_object.__class__]):
         entity = an_object.__class__

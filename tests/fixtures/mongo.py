@@ -25,8 +25,9 @@ def mongo_test_repository(mongo_test_model):
     class TestRepository(Repository[mongo_test_model], ABC):
         entity = mongo_test_model
 
-    class MongoTestRepository(TestRepository, MongoRepositoryMixin[mongo_test_model]):
-        ...
+    class MongoTestRepository(
+        TestRepository, MongoRepositoryMixin[mongo_test_model]
+    ): ...
 
     return MongoTestRepository(
         host="mongo-mock",

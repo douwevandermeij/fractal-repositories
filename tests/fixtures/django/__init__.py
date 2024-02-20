@@ -76,8 +76,7 @@ def django_test_repository(django_settings, django_test_model, django_test_model
     class DjangoTestRepository(
         TestRepository,
         DjangoModelRepositoryMixin[django_test_model],
-    ):
-        ...
+    ): ...
 
     django_test_model_dao.objects.all().delete()
 

@@ -36,8 +36,7 @@ def firestore_test_repository(firestore_test_model, firebase_client_mock):
 
     class FirestoreTestRepository(
         TestRepository, FirestoreRepositoryMixin[firestore_test_model]
-    ):
-        ...
+    ): ...
 
     repository = FirestoreTestRepository(collection="test")
 
