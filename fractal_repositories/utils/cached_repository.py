@@ -7,8 +7,10 @@ from fractal_repositories.core.repositories import EntityType, Repository
 
 
 class CachedRepository(Repository[EntityType]):
-    def __init__(self, *, main_repository: Repository, cache_repository: Repository):
-        super(CachedRepository, self).__init__()
+    def __init__(
+        self, *, main_repository: Repository, cache_repository: Repository, **kwargs
+    ):
+        super(CachedRepository, self).__init__(**kwargs)
         self.main_repository = main_repository
         self.cache_repository = cache_repository
 

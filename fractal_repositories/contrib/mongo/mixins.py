@@ -29,8 +29,10 @@ def setup_mongo_connection(
 
 
 class MongoRepositoryMixin(Repository[EntityType]):
-    def __init__(self, host, port, username, password, database, collection):
-        super().__init__()
+    def __init__(
+        self, host, port, username, password, database, collection, *args, **kwargs
+    ):
+        super().__init__(*args, **kwargs)
         self.client, self.db = setup_mongo_connection(
             host, port, username, password, database
         )

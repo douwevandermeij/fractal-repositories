@@ -11,8 +11,8 @@ from fractal_repositories.core.repositories import (
 
 
 class InMemoryRepositoryMixin(Repository[EntityType]):
-    def __init__(self):
-        super(InMemoryRepositoryMixin, self).__init__()
+    def __init__(self, *args, **kwargs):
+        super(InMemoryRepositoryMixin, self).__init__(*args, **kwargs)
 
         self.entities: Dict[str, EntityType] = {}
 
@@ -81,8 +81,8 @@ class InMemoryRepositoryMixin(Repository[EntityType]):
 
 
 class InMemoryFileRepositoryMixin(FileRepository[EntityType]):
-    def __init__(self):
-        super(InMemoryFileRepositoryMixin, self).__init__()
+    def __init__(self, *args, **kwargs):
+        super(InMemoryFileRepositoryMixin, self).__init__(*args, **kwargs)
 
         self.files: Dict[str, bytes] = {}
 

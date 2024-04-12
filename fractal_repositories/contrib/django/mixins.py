@@ -11,8 +11,8 @@ from fractal_repositories.core.repositories import EntityType, Repository
 
 
 class DjangoModelRepositoryMixin(Repository[EntityType]):
-    def __init__(self, django_model: Type[Model]):
-        super().__init__()
+    def __init__(self, django_model: Type[Model], *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.django_model = django_model
 
     def add(self, entity: EntityType) -> EntityType:

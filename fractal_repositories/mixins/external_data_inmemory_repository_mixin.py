@@ -10,8 +10,8 @@ from fractal_repositories.utils.json_encoder import EnhancedEncoder
 
 
 class ExternalDataInMemoryRepositoryMixin(InMemoryRepositoryMixin[EntityType]):
-    def __init__(self, klass: Type[EntityType]):
-        super(ExternalDataInMemoryRepositoryMixin, self).__init__()
+    def __init__(self, klass: Type[EntityType], *args, **kwargs):
+        super(ExternalDataInMemoryRepositoryMixin, self).__init__(*args, **kwargs)
         self.klass = klass
 
     def load_data_dict(self, data: Dict):

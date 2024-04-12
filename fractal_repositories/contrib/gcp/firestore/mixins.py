@@ -57,8 +57,10 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
     https://github.com/GoogleCloudPlatform/python-docs-samples/blob/46fa5a588858021ea32350584a4ee178cd7c1f33/firestore/cloud-client/snippets.py#L62-L66
     """
 
-    def __init__(self, collection: str = "", *, collection_prefix: str = ""):
-        super(FirestoreRepositoryMixin, self).__init__()
+    def __init__(self, collection: str = "", *, collection_prefix: str = "", **kwargs):
+        super(FirestoreRepositoryMixin, self).__init__(
+            collection=collection, collection_prefix=collection_prefix, **kwargs
+        )
 
         client: Client = FirestoreClient().get_firestore_client()
         if not collection and self.entity:

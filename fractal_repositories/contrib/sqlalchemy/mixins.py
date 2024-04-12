@@ -118,8 +118,8 @@ class SqlAlchemyRepositoryMixin(
     entity_dao: EntityDao
     application_mapper: Type[DaoMapper]
 
-    def __init__(self, connection_str: str):
-        super().__init__()
+    def __init__(self, connection_str: str, *args, **kwargs):
+        super().__init__(*args, **kwargs)
 
         self.connection_str = connection_str
         engine = create_engine(
