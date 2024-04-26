@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import datetime, timezone
 from decimal import Decimal
 from typing import List
 
@@ -81,7 +81,7 @@ def test_model_skip_types(model_instance, now, decimal):
     assert model_instance.asdict(
         skip_types=(
             list,
-            date,
+            datetime,
             Decimal,
         )
     ) == {
@@ -114,7 +114,7 @@ def test_model_nested_skip_types(nested_model_instance, model_instance, now, dec
     m = nested_model_instance.asdict(
         skip_types=(
             list,
-            date,
+            datetime,
             Decimal,
         )
     )[
@@ -127,7 +127,7 @@ def test_model_nested_skip_types(nested_model_instance, model_instance, now, dec
 def test_model_nested_skip_types_no_list(nested_model_instance, now, decimal):
     assert nested_model_instance.asdict(
         skip_types=(
-            date,
+            datetime,
             Decimal,
         )
     ) == {

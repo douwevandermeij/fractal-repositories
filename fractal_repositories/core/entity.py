@@ -1,5 +1,5 @@
 from dataclasses import dataclass, fields
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any, Dict
 
@@ -34,7 +34,9 @@ class Model:
                 return [_asdict(i) for i in v]
             elif isinstance(v, Decimal) and Decimal not in skip_types:
                 return f"{v:.2f}"
-            elif isinstance(v, (date, datetime)) and date not in skip_types:
+            elif type(v) is date and date not in skip_types:
+                return datetime.combine(v, time.min).isoformat()
+            elif type(v) is datetime and datetime not in skip_types:
                 return (
                     v.isoformat().replace("+00:00", "Z")
                     if use_timezone_z

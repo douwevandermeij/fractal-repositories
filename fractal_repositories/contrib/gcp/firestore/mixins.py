@@ -78,7 +78,7 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
         doc_ref = self.collection.document(entity.id)
         doc = doc_ref.get()
         if doc.exists:
-            doc_ref.set(entity.asdict(skip_types=(date,)))
+            doc_ref.set(entity.asdict())
             return entity
         elif upsert:
             return self.add(entity)
