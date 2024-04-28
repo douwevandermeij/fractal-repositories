@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from decimal import Decimal
 from typing import List
 
@@ -143,3 +143,39 @@ def test_model_nested_skip_types_no_list(nested_model_instance, now, decimal):
             }
         ],
     }
+
+
+@pytest.mark.parametrize(
+    "input, output",
+    [
+        ({"id": "1", "d": "", "dt": ""}, {"id": "1", "d": None, "dt": None}),
+        ({"id": "1", "d": None, "dt": None}, {"id": "1", "d": None, "dt": None}),
+        (
+            {"id": "1", "d": "2020-01-01", "dt": "2020-01-01"},
+            {"id": "1", "d": "2020-01-01T00:00:00", "dt": "2020-01-01T00:00:00"},
+        ),
+        (
+            {
+                "id": "1",
+                "d": "2020-01-01T00:00:00",
+                "dt": "2020-01-01T07:43:22.086238+00:00",
+            },
+            {
+                "id": "1",
+                "d": "2020-01-01T00:00:00",
+                "dt": "2020-01-01T07:43:22.086238+00:00",
+            },
+        ),
+    ],
+)
+def test_pydantic_dataclass_date_datetime(input, output):
+    from pydantic.dataclasses import dataclass
+
+    from fractal_repositories.core.entity import Entity
+
+    @dataclass
+    class M(Entity):
+        d: date = None
+        dt: datetime = None
+
+    assert M.clean(**input).asdict() == output
