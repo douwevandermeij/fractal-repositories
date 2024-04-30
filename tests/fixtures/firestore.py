@@ -1,11 +1,12 @@
 from abc import ABC
 from dataclasses import dataclass
+from datetime import date, datetime
 
 import pytest
 
 
 @pytest.fixture
-def firestore_test_model():
+def firestore_test_model(now):
     from fractal_repositories.core.entity import Entity
 
     @dataclass
@@ -13,6 +14,8 @@ def firestore_test_model():
         id: str
         name: str = "test"
         description: str = "test"
+        created_on: date = now
+        created_at: datetime = now
 
     return TestModelFirestore
 

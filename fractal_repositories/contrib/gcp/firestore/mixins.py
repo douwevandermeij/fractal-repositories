@@ -1,4 +1,3 @@
-from datetime import date
 from typing import Iterable, Iterator, Optional, Union
 
 from fractal_specifications.contrib.google_firestore.specifications import (
@@ -71,7 +70,7 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
 
     def add(self, entity: EntityType) -> EntityType:
         doc_ref = self.collection.document(entity.id)
-        doc_ref.set(entity.asdict(skip_types=(date,)))
+        doc_ref.set(entity.asdict())
         return entity
 
     def update(self, entity: EntityType, *, upsert=False) -> EntityType:
