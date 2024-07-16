@@ -17,8 +17,13 @@ def setup_mongo_connection(
         import mongomock
 
         client: MongoClient = mongomock.MongoClient()
+    elif port:
+        connection_string = f"mongodb://{username}:{password}@{host}:{port}/?retryWrites=true&w=majority"
+        client = MongoClient(connection_string)
     else:
-        connection_string = f"mongodb://{username}:{password}@{host}:{port}/"
+        connection_string = (
+            f"mongodb+srv://{username}:{password}@p{host}/?retryWrites=true&w=majority"
+        )
         client = MongoClient(connection_string)
     db = client[database]
     return client, db
