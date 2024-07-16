@@ -1,4 +1,4 @@
-from typing import Dict, Iterator, Optional, Tuple
+from typing import Iterator, Optional, Tuple
 
 from fractal_specifications.contrib.mongo.specifications import (
     MongoSpecificationBuilder,
@@ -11,18 +11,14 @@ from fractal_repositories.core.repositories import EntityType, Repository
 
 
 def setup_mongo_connection(
-    host, port, username, password, database
+    host: str, port: str, username: str, password: str, database: str
 ) -> Tuple[MongoClient, Database]:
     if host == "mongo-mock":
         import mongomock
 
         client: MongoClient = mongomock.MongoClient()
     else:
-        if username:
-            connection_string = f"mongodb+srv://{username}:{password}@{host}/{database}"
-        else:
-            connection_string = f"mongodb://{host}:{port}/{database}"
-        connection_string += "?retryWrites=true&w=majority&connect=false"
+        connection_string = f"mongodb://{username}:{password}@{host}:{port}/"
         client = MongoClient(connection_string)
     db = client[database]
     return client, db
@@ -30,13 +26,23 @@ def setup_mongo_connection(
 
 class MongoRepositoryMixin(Repository[EntityType]):
     def __init__(
-        self, host, port, username, password, database, collection, *args, **kwargs
+        self,
+        host: str,
+        port: str,
+        username: str,
+        password: str,
+        database: str,
+        collection: str = "",
+        *args,
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.client, self.db = setup_mongo_connection(
             host, port, username, password, database
         )
-        self.collection = getattr(self.db, collection)
+        if not collection and self.entity:
+            collection = self.entity.__name__  # type: ignore
+        self.collection = getattr(self.db, collection.lower().replace(" ", "-"))
 
     def add(self, entity: EntityType) -> EntityType:
         self.collection.insert_one(entity.asdict())
@@ -96,8 +102,7 @@ class MongoRepositoryMixin(Repository[EntityType]):
             yield self._obj_to_domain(obj)
 
     def is_healthy(self) -> bool:
-        ok = self.client.server_info().get("ok", False)
-        return bool(ok)
+        return bool(self.client.server_info().get("ok", False))
 
-    def _obj_to_domain(self, obj: Dict) -> EntityType:
+    def _obj_to_domain(self, obj: dict) -> EntityType:
         return self.entity.clean(**obj)
