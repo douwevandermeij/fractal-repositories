@@ -39,7 +39,7 @@ class Model:
             elif isinstance(v, Decimal) and Decimal not in skip_types:
                 return f"{v:.2f}"
             elif type(v) is date and date not in skip_types:
-                return datetime.combine(v, time.min).isoformat()
+                return datetime.combine(v, time.min).strftime("%Y-%m-%d")
             elif type(v) is datetime and datetime not in skip_types:
                 return (
                     v.isoformat().replace("+00:00", "Z")
