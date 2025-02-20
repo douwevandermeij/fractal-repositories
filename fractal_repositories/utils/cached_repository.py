@@ -62,5 +62,8 @@ class CachedRepository(Repository[EntityType]):
         ):
             self.cache_repository.remove_one(Specification.parse(id=i.id))
 
+    def count(self, specification: Optional[Specification] = None) -> int:
+        return self.main_repository.count(specification)
+
     def is_healthy(self) -> bool:
         return self.main_repository.is_healthy() and self.cache_repository.is_healthy()

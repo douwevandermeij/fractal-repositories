@@ -58,6 +58,22 @@ def test_find(
     ]
 
 
+def test_count(
+    inmemory_a_repository,
+    inmemory_b_repository,
+    distributed_abc_inmemory_read_repository,
+):
+    inmemory_a_repository.add(A(1, "a"))
+    inmemory_a_repository.add(A(2, "b"))
+    inmemory_a_repository.add(A(3, "c"))
+
+    inmemory_b_repository.add(B(4, 1))
+    inmemory_b_repository.add(B(5, 1, "d"))
+    inmemory_b_repository.add(B(6, 2))
+
+    assert distributed_abc_inmemory_read_repository.count() == 6
+
+
 def test_find_aggregate(
     inmemory_a_repository,
     inmemory_b_repository,

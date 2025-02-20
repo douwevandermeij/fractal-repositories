@@ -59,6 +59,11 @@ class DistributedReadRepository(ReadRepository[EntityType]):
                         )
             yield self.entity.from_dict(data)
 
+    def count(self, specification: Optional[Specification] = None) -> int:
+        return self.main_repository.count(specification) + sum(
+            [r.repository.count(specification) for r in self.other_repositories]
+        )
+
     def is_healthy(self) -> bool:
         return self.main_repository.is_healthy() and all(
             map(lambda i: i.repository.is_healthy(), self.other_repositories)

@@ -34,6 +34,10 @@ class ReadRepository(Generic[EntityType], ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def count(self, specification: Optional[Specification] = None) -> int:
+        raise NotImplementedError
+
+    @abstractmethod
     def is_healthy(self) -> bool:
         raise NotImplementedError
 

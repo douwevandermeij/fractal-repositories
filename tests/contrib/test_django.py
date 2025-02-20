@@ -27,6 +27,17 @@ def test_find(django_test_repository, django_test_model):
     assert list(django_test_repository.find()) == [obj1, obj2]
 
 
+def test_count(django_test_repository, django_test_model):
+    obj1 = get_obj(django_test_model)
+    obj2 = get_obj(django_test_model)
+    obj1.id = "1"
+    obj2.id = "2"
+    django_test_repository.add(obj1)
+    django_test_repository.add(obj2)
+
+    assert django_test_repository.count() == 2
+
+
 def test_find_reverse(django_test_repository, django_test_model):
     obj1 = get_obj(django_test_model)
     obj2 = get_obj(django_test_model)

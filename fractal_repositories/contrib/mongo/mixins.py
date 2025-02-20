@@ -106,6 +106,9 @@ class MongoRepositoryMixin(Repository[EntityType]):
         for obj in collection.sort(order_by, direction):
             yield self._obj_to_domain(obj)
 
+    def count(self, specification: Optional[Specification] = None) -> int:
+        return self.collection.count_documents({})
+
     def is_healthy(self) -> bool:
         return bool(self.client.server_info().get("ok", False))
 

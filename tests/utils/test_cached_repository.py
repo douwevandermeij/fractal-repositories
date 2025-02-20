@@ -54,6 +54,15 @@ def test_find(
     ]
 
 
+def test_count(
+    inmemory_c_repository, another_inmemory_c_repository, cached_inmemory_c_repository
+):
+    cached_inmemory_c_repository.add(C(1, "a", 1))
+    cached_inmemory_c_repository.add(C(2, "b", 2))
+
+    assert cached_inmemory_c_repository.count() == 2
+
+
 def test_find_one_error(
     inmemory_c_repository, another_inmemory_c_repository, cached_inmemory_c_repository
 ):

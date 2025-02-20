@@ -27,6 +27,17 @@ def test_find(mongo_test_repository, mongo_test_model):
     assert list(mongo_test_repository.find()) == [obj1, obj2]
 
 
+def test_count(mongo_test_repository, mongo_test_model):
+    obj1 = get_obj(mongo_test_model)
+    obj2 = get_obj(mongo_test_model)
+    obj1.id = "1"
+    obj2.id = "2"
+    mongo_test_repository.add(obj1)
+    mongo_test_repository.add(obj2)
+
+    assert mongo_test_repository.count() == 2
+
+
 def test_find_reverse(mongo_test_repository, mongo_test_model):
     obj1 = get_obj(mongo_test_model)
     obj2 = get_obj(mongo_test_model)

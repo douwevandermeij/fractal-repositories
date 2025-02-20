@@ -139,7 +139,7 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
             collection = collection.order_by(order_by, direction=direction)
 
         if limit:
-            if offset and (last := list(collection.limit(offset).stream())[-1]):
+            if offset and (last := list(collection.limit(offset).stream())[-1]):  # type: ignore
                 collection = collection.start_after(
                     {order_by: (last.to_dict() or {}).get(order_by)}
                 ).limit(limit)
@@ -147,6 +147,21 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
                 collection = collection.limit(limit)
         for doc in self._get_collection_stream(collection):
             yield self.entity.from_dict(doc.to_dict())
+
+    def count(self, specification: Optional[Specification] = None) -> int:
+        _filter = FirestoreSpecificationBuilder.build(specification)
+        collection: Union[BaseCollectionReference, BaseQuery] = self.collection
+        if _filter:
+            if isinstance(_filter, list):
+                for f in _filter:
+                    collection = collection.where(filter=FieldFilter(*f))
+            else:
+                collection = collection.where(filter=FieldFilter(*_filter))
+
+        count_query = collection.count()
+        result = count_query.get()  # type: ignore
+
+        return result[0][0].value if result else 0  # type: ignore
 
     def is_healthy(self) -> bool:
         return True

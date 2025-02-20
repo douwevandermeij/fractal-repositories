@@ -46,6 +46,15 @@ def test_find_no_spec(sqlalchemy_test_repository, sqlalchemy_test_model):
     assert res == [obj1, obj2]
 
 
+def test_count(sqlalchemy_test_repository, sqlalchemy_test_model):
+    obj1 = sqlalchemy_test_model("test1")
+    obj2 = sqlalchemy_test_model("test2")
+    sqlalchemy_test_repository.add(obj1)
+    sqlalchemy_test_repository.add(obj2)
+
+    assert sqlalchemy_test_repository.count() == 2
+
+
 def test_find_order_by_offset_limit(sqlalchemy_test_repository, sqlalchemy_test_model):
     obj1 = sqlalchemy_test_model("1", "test1")
     obj2 = sqlalchemy_test_model("2", "test2")

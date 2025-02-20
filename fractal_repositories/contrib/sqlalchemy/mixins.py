@@ -352,6 +352,9 @@ class SqlAlchemyRepositoryMixin(
             return ret
         return ret
 
+    def count(self, specification: Optional[Specification] = None) -> int:
+        return self.session.query(self.entity_dao).count()
+
     def is_healthy(self) -> bool:
         try:
             with self:

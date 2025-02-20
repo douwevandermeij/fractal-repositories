@@ -76,6 +76,9 @@ class InMemoryRepositoryMixin(Repository[EntityType]):
         for entity in entities:
             yield entity
 
+    def count(self, specification: Optional[Specification] = None) -> int:
+        return len(self.entities)
+
     def is_healthy(self) -> bool:
         return True
 

@@ -29,6 +29,17 @@ def test_find(firestore_test_repository, firestore_test_model, now):
     assert list(firestore_test_repository.find()) == [obj1, obj2]
 
 
+def test_count(firestore_test_repository, firestore_test_model, now):
+    obj1 = get_obj(firestore_test_model, now)
+    obj2 = get_obj(firestore_test_model, now)
+    obj1.id = "1"
+    obj2.id = "2"
+    firestore_test_repository.add(obj1)
+    firestore_test_repository.add(obj2)
+
+    assert firestore_test_repository.count() == 2
+
+
 def test_find_reverse(firestore_test_repository, firestore_test_model, now):
     obj1 = get_obj(firestore_test_model, now)
     obj2 = get_obj(firestore_test_model, now)
