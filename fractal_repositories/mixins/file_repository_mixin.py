@@ -24,7 +24,7 @@ class RootDirMixin(object):
 class FileRepositoryMixin(RootDirMixin, InMemoryRepositoryMixin[EntityType]):
     @property
     def _filename(self) -> str:
-        return os.path.join(self.root_dir, "db", f"{self.__class__.__name__}.txt")
+        return os.path.join(self.root_dir, "db", f"{self.__class__.__name__}.jsonl")
 
     @property
     def _get_entities(self) -> Iterator[EntityType]:
