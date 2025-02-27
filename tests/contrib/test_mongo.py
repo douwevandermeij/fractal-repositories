@@ -15,6 +15,10 @@ def test_is_healthy(mongo_test_repository):
     assert mongo_test_repository.is_healthy()
 
 
+def test_collection_prefix(mongo_test_repository):
+    assert mongo_test_repository.collection.name == "app-test"
+
+
 def test_find(mongo_test_repository, mongo_test_model):
     obj1 = get_obj(mongo_test_model)
     obj2 = get_obj(mongo_test_model)

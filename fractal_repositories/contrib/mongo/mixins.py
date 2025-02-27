@@ -38,6 +38,7 @@ class MongoRepositoryMixin(Repository[EntityType]):
         password: str,
         database: str,
         collection: str = "",
+        collection_prefix: str = "",
         *args,
         **kwargs,
     ):
@@ -47,6 +48,8 @@ class MongoRepositoryMixin(Repository[EntityType]):
         )
         if not collection and self.entity:
             collection = self.entity.__name__  # type: ignore
+        if collection_prefix:
+            collection = "-".join([collection_prefix, collection])
         self.collection = getattr(self.db, collection.lower().replace(" ", "-"))
 
     def add(self, entity: EntityType) -> EntityType:

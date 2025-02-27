@@ -36,4 +36,5 @@ def mongo_test_repository(mongo_test_model):
         password="",
         database="",
         collection="test",
+        collection_prefix="app",
     )
