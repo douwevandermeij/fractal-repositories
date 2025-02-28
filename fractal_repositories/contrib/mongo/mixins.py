@@ -22,7 +22,7 @@ def setup_mongo_connection(
         client = MongoClient(connection_string)
     else:
         connection_string = (
-            f"mongodb+srv://{username}:{password}@p{host}/?retryWrites=true&w=majority"
+            f"mongodb+srv://{username}:{password}@{host}/?retryWrites=true&w=majority"
         )
         client = MongoClient(connection_string)
     db = client[database]
