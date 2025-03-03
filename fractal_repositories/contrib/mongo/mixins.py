@@ -6,17 +6,30 @@ from fractal_specifications.contrib.mongo.specifications import (
 from fractal_specifications.generic.specification import Specification
 from pymongo import MongoClient
 from pymongo.database import Database
+from pymongo.server_api import ServerApi
 
 from fractal_repositories.core.repositories import EntityType, Repository
 
 
 def setup_mongo_connection(
-    host: str, port: str, username: str, password: str, database: str
+    host: str,
+    port: str,
+    username: str,
+    password: str,
+    database: str,
+    certificate_key_file: str,
 ) -> Tuple[MongoClient, Database]:
     if host == "mongo-mock":
         import mongomock
 
         client: MongoClient = mongomock.MongoClient()
+    elif certificate_key_file:
+        client = MongoClient(
+            f"mongodb+srv://{host}/?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority",
+            tls=True,
+            tlsCertificateKeyFile=certificate_key_file,
+            server_api=ServerApi("1"),
+        )
     elif port:
         connection_string = f"mongodb://{username}:{password}@{host}:{port}/?retryWrites=true&w=majority"
         client = MongoClient(connection_string)
@@ -39,12 +52,13 @@ class MongoRepositoryMixin(Repository[EntityType]):
         database: str,
         collection: str = "",
         collection_prefix: str = "",
+        certificate_key_file: str = "",
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
         self.client, self.db = setup_mongo_connection(
-            host, port, username, password, database
+            host, port, username, password, database, certificate_key_file
         )
         if not collection and self.entity:
             collection = self.entity.__name__  # type: ignore
