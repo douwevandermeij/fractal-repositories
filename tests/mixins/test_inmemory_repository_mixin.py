@@ -1,4 +1,5 @@
 import pytest
+from fractal_specifications.generic.specification import Specification
 
 
 def test_is_healthy(inmemory_repository):
@@ -66,10 +67,12 @@ def test_find(inmemory_repository, an_object):
     assert len(list(inmemory_repository.find())) == 1
 
 
-def test_count(inmemory_repository, an_object):
+def test_count(inmemory_repository, an_object, another_object):
     inmemory_repository.add(an_object)
+    inmemory_repository.add(another_object)
 
-    assert inmemory_repository.count() == 1
+    assert inmemory_repository.count() == 2
+    assert inmemory_repository.count(Specification.parse(id=an_object.id)) == 1
 
 
 def test_find_reverse(inmemory_repository, an_object, another_object):

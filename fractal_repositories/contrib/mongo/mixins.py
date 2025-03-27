@@ -124,7 +124,9 @@ class MongoRepositoryMixin(Repository[EntityType]):
             yield self._obj_to_domain(obj)
 
     def count(self, specification: Optional[Specification] = None) -> int:
-        return self.collection.count_documents({})
+        return self.collection.count_documents(
+            MongoSpecificationBuilder.build(specification) or {}
+        )
 
     def is_healthy(self) -> bool:
         return bool(self.client.server_info().get("ok", False))

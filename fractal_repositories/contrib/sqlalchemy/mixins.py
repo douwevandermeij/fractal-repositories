@@ -299,6 +299,31 @@ class SqlAlchemyRepositoryMixin(
         limit: int = 0,
         order_by: str = "",
     ) -> List[EntityType]:
+        filters = self._get_filters(entity_dao_class, specification)
+
+        with self:
+            ret = self.session.query(entity_dao_class or self.entity_dao)
+        if type(filters) is dict:
+            ret = ret.filter_by(**filters)
+        if type(filters) is BooleanClauseList:
+            ret = ret.where(filters)
+
+        if order_by:
+            if order_by.startswith("-"):
+                _order_by = getattr(entity_dao_class or self.entity_dao, order_by[1:])
+                desc = True
+            else:
+                _order_by = getattr(entity_dao_class or self.entity_dao, order_by)
+                desc = False
+            ret = ret.order_by(_order_by.desc() if desc else _order_by)
+
+        if limit:
+            ret = ret.offset(offset)
+            ret = ret.limit(limit)
+            return ret
+        return ret
+
+    def _get_filters(self, entity_dao_class, specification):
         filters = None
         _filter = None
         if specification:
@@ -329,31 +354,17 @@ class SqlAlchemyRepositoryMixin(
                 )
             else:
                 filters = _filter
+        return filters
 
+    def count(self, specification: Optional[Specification] = None) -> int:
+        filters = self._get_filters(self.entity_dao, specification)
         with self:
-            ret = self.session.query(entity_dao_class or self.entity_dao)
+            ret = self.session.query(self.entity_dao)
         if type(filters) is dict:
             ret = ret.filter_by(**filters)
         if type(filters) is BooleanClauseList:
             ret = ret.where(filters)
-
-        if order_by:
-            if order_by.startswith("-"):
-                _order_by = getattr(entity_dao_class or self.entity_dao, order_by[1:])
-                desc = True
-            else:
-                _order_by = getattr(entity_dao_class or self.entity_dao, order_by)
-                desc = False
-            ret = ret.order_by(_order_by.desc() if desc else _order_by)
-
-        if limit:
-            ret = ret.offset(offset)
-            ret = ret.limit(limit)
-            return ret
-        return ret
-
-    def count(self, specification: Optional[Specification] = None) -> int:
-        return self.session.query(self.entity_dao).count()
+        return ret.count()
 
     def is_healthy(self) -> bool:
         try:

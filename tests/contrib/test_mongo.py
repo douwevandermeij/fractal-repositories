@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+from fractal_specifications.generic.specification import Specification
 
 
 def get_obj(mongo_test_model):
@@ -40,6 +41,7 @@ def test_count(mongo_test_repository, mongo_test_model):
     mongo_test_repository.add(obj2)
 
     assert mongo_test_repository.count() == 2
+    assert mongo_test_repository.count(Specification.parse(id="1")) == 1
 
 
 def test_find_reverse(mongo_test_repository, mongo_test_model):

@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+from fractal_specifications.generic.specification import Specification
 
 
 def get_obj(django_test_model):
@@ -36,6 +37,7 @@ def test_count(django_test_repository, django_test_model):
     django_test_repository.add(obj2)
 
     assert django_test_repository.count() == 2
+    assert django_test_repository.count(Specification.parse(id="1")) == 1
 
 
 def test_find_reverse(django_test_repository, django_test_model):

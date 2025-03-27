@@ -88,7 +88,11 @@ class DjangoModelRepositoryMixin(Repository[EntityType]):
             yield self._obj_to_domain(obj.__dict__)
 
     def count(self, specification: Optional[Specification] = None) -> int:
-        return self.django_model.objects.count()
+        if _filter := DjangoOrmSpecificationBuilder.build(specification):
+            queryset = self.django_model.objects.filter(_filter)
+        else:
+            queryset = self.django_model.objects.all()
+        return queryset.count()
 
     def is_healthy(self) -> bool:
         return True

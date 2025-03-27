@@ -1,4 +1,5 @@
 import pytest
+from fractal_specifications.generic.specification import Specification
 
 
 def test_is_healthy(sqlalchemy_test_repository):
@@ -53,6 +54,7 @@ def test_count(sqlalchemy_test_repository, sqlalchemy_test_model):
     sqlalchemy_test_repository.add(obj2)
 
     assert sqlalchemy_test_repository.count() == 2
+    assert sqlalchemy_test_repository.count(Specification.parse(id="test1")) == 1
 
 
 def test_find_order_by_offset_limit(sqlalchemy_test_repository, sqlalchemy_test_model):

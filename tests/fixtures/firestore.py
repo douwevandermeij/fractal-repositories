@@ -22,7 +22,7 @@ def firestore_test_model(now):
 
 @pytest.fixture
 def firebase_client_mock(mocker):
-    from mockfirestore import CollectionReference, MockFirestore  # type: ignore
+    from mockfirestore import CollectionReference, MockFirestore, Query  # type: ignore
 
     def count(self):
         class Result:
@@ -36,6 +36,7 @@ def firebase_client_mock(mocker):
         return Query()
 
     CollectionReference.count = count
+    Query.count = count
 
     mocker.patch("firebase_admin.firestore.client", lambda: MockFirestore())
 

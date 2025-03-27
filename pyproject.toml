@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "fractal-repositories"
-version = "1.2.1"
+version = "1.2.2"
 description = "Fractal Repositories is an implementation of the repository pattern for building SOLID logic for your Python applications."
 authors = ["Douwe van der Meij <douwe@karibu-online.nl>"]
 

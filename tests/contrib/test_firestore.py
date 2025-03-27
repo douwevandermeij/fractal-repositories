@@ -1,6 +1,7 @@
 import uuid
 
 import pytest
+from fractal_specifications.generic.specification import Specification
 
 
 def get_obj(firestore_test_model, now):
@@ -38,6 +39,7 @@ def test_count(firestore_test_repository, firestore_test_model, now):
     firestore_test_repository.add(obj2)
 
     assert firestore_test_repository.count() == 2
+    assert firestore_test_repository.count(Specification.parse(id="1")) == 1
 
 
 def test_find_reverse(firestore_test_repository, firestore_test_model, now):
