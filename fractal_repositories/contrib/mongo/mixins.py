@@ -12,17 +12,20 @@ from fractal_repositories.core.repositories import EntityType, Repository
 
 
 def setup_mongo_connection(
-    host: str,
-    port: str,
-    username: str,
-    password: str,
-    database: str,
-    certificate_key_file: str,
+    host: str = "",
+    port: str = "",
+    username: str = "",
+    password: str = "",
+    database: str = "",
+    certificate_key_file: str = "",
+    uri: str = "",
 ) -> Tuple[MongoClient, Database]:
     if host == "mongo-mock":
         import mongomock
 
         client: MongoClient = mongomock.MongoClient()
+    elif uri:
+        client = MongoClient(uri)
     elif certificate_key_file:
         client = MongoClient(
             f"mongodb+srv://{host}/?authSource=%24external&authMechanism=MONGODB-X509&retryWrites=true&w=majority",
@@ -45,21 +48,13 @@ def setup_mongo_connection(
 class MongoRepositoryMixin(Repository[EntityType]):
     def __init__(
         self,
-        host: str,
-        port: str,
-        username: str,
-        password: str,
-        database: str,
         collection: str = "",
         collection_prefix: str = "",
-        certificate_key_file: str = "",
         *args,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.client, self.db = setup_mongo_connection(
-            host, port, username, password, database, certificate_key_file
-        )
+        self.client, self.db = setup_mongo_connection(**kwargs)
         if not collection and self.entity:
             collection = self.entity.__name__  # type: ignore
         if collection_prefix:
