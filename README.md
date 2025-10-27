@@ -88,6 +88,153 @@ class FirestoreDemoRepository(DemoRepository, FirestoreRepositoryMixin[DemoModel
 Fractal Repositories comes with ready to use adapter mixins for:
 * Django
 * SQLAlchemy
-* Mongo
+* PostgreSQL
+* MongoDB
+* DuckDB
 * Google Firestore
-* Elastic
+* Google Cloud Storage
+
+## Examples
+
+### DuckDB (In-process Analytical Database)
+
+DuckDB is an in-process SQL OLAP database management system, perfect for analytical workloads and embedded analytics.
+
+```python
+from dataclasses import dataclass
+from fractal_repositories.core.entity import Entity
+from fractal_repositories.core.repositories import Repository
+from fractal_repositories.contrib.duckdb import DuckDBRepositoryMixin
+from fractal_specifications.generic.specification import Specification
+
+
+@dataclass
+class User(Entity):
+    id: str
+    name: str
+    email: str
+
+
+class UserRepository(Repository[User], DuckDBRepositoryMixin[User]):
+    entity = User
+
+
+# In-memory database (great for testing)
+repo = UserRepository(database=":memory:", table="users")
+
+# Or file-based database for persistence
+# repo = UserRepository(database="analytics.db", table="users")
+
+# Add entities
+user = User(id="1", name="Alice", email="alice@example.com")
+repo.add(user)
+
+# Query with specifications
+found_user = repo.find_one(Specification.parse(id="1"))
+
+# Find all users
+all_users = list(repo.find())
+
+# Count users
+user_count = repo.count()
+
+# Update
+user.email = "newemail@example.com"
+repo.update(user)
+
+# Remove
+repo.remove_one(Specification.parse(id="1"))
+```
+
+### MongoDB
+
+```python
+from fractal_repositories.contrib.mongo import MongoRepositoryMixin
+
+
+class MongoUserRepository(UserRepository, MongoRepositoryMixin[User]):
+    pass
+
+
+repo = MongoUserRepository(
+    host="localhost",
+    port="27017",
+    username="user",
+    password="pass",
+    database="mydb",
+    collection="users"
+)
+```
+
+### Google Firestore
+
+```python
+from fractal_repositories.contrib.gcp.firestore import FirestoreRepositoryMixin
+
+
+class FirestoreUserRepository(UserRepository, FirestoreRepositoryMixin[User]):
+    pass
+
+
+repo = FirestoreUserRepository(
+    collection="users",
+    service_account_path="/path/to/service-account.json"
+)
+```
+
+### PostgreSQL
+
+```python
+from fractal_repositories.contrib.postgresql import PostgresRepositoryMixin
+
+
+class PostgresUserRepository(UserRepository, PostgresRepositoryMixin[User]):
+    pass
+
+
+repo = PostgresUserRepository(
+    postgres_host="localhost",
+    postgres_port="5432",
+    postgres_db="mydb",
+    postgres_user="user",
+    postgres_password="pass",
+    table="users"
+)
+```
+
+### Django
+
+```python
+from fractal_repositories.contrib.django import DjangoModelRepositoryMixin
+
+
+class DjangoUserRepository(UserRepository, DjangoModelRepositoryMixin[User]):
+    pass
+
+
+# Assuming you have a Django model
+from myapp.models import UserModel
+
+repo = DjangoUserRepository(django_model=UserModel)
+```
+
+### SQLAlchemy
+
+```python
+from fractal_repositories.contrib.sqlalchemy.mixins import SqlAlchemyRepositoryMixin
+
+
+class SqlAlchemyUserRepository(UserRepository, SqlAlchemyRepositoryMixin[User]):
+    pass
+
+
+# Use with your SQLAlchemy session
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+engine = create_engine("sqlite:///example.db")
+Session = sessionmaker(bind=engine)
+session = Session()
+
+repo = SqlAlchemyUserRepository(session=session, model=YourSqlAlchemyModel)
+```

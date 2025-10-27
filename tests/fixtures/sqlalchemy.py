@@ -34,8 +34,10 @@ def sqlalchemy_test_sub_model():
 
 @pytest.fixture
 def sqlalchemy_test_model_dao(sqlalchemy_test_model, sqlalchemy_test_sub_model_dao):
+    from typing import Type
+
     from sqlalchemy import Column, MetaData, String, Table  # type: ignore
-    from sqlalchemy.orm import Mapper, mapper  # type: ignore
+    from sqlalchemy.orm import registry  # type: ignore
 
     from fractal_repositories.contrib.sqlalchemy.mixins import SqlAlchemyDao
 
@@ -59,11 +61,14 @@ def sqlalchemy_test_model_dao(sqlalchemy_test_model, sqlalchemy_test_sub_model_d
             return dao
 
         @staticmethod
-        def mapper(meta: MetaData, foreign_keys: Dict[str, Mapper]) -> Mapper:
-            return mapper(
+        def mapper(
+            meta: MetaData, mapper_registry: registry, foreign_keys: Dict[str, Type]
+        ) -> Type:
+            mapper_registry.map_imperatively(
                 TestModelDao,
                 TestModelDao.table(meta),
             )
+            return TestModelDao
 
         @staticmethod
         def table(meta: MetaData) -> Table:
@@ -82,8 +87,10 @@ def sqlalchemy_test_model_dao(sqlalchemy_test_model, sqlalchemy_test_sub_model_d
 def sqlalchemy_test_model_dao_error(
     sqlalchemy_test_model, sqlalchemy_test_sub_model_dao
 ):
+    from typing import Type
+
     from sqlalchemy import Column, MetaData, String, Table
-    from sqlalchemy.orm import Mapper, mapper
+    from sqlalchemy.orm import registry
 
     from fractal_repositories.contrib.sqlalchemy.mixins import SqlAlchemyDao
 
@@ -109,11 +116,14 @@ def sqlalchemy_test_model_dao_error(
             return dao
 
         @staticmethod
-        def mapper(meta: MetaData, foreign_keys: Dict[str, Mapper]) -> Mapper:
-            return mapper(
+        def mapper(
+            meta: MetaData, mapper_registry: registry, foreign_keys: Dict[str, Type]
+        ) -> Type:
+            mapper_registry.map_imperatively(
                 TestModelDao,
                 TestModelDao.table(meta),
             )
+            return TestModelDao
 
         @staticmethod
         def table(meta: MetaData) -> Table:
@@ -130,8 +140,10 @@ def sqlalchemy_test_model_dao_error(
 
 @pytest.fixture
 def sqlalchemy_test_sub_model_dao(sqlalchemy_test_sub_model):
+    from typing import Type
+
     from sqlalchemy import Column, ForeignKey, MetaData, String, Table
-    from sqlalchemy.orm import Mapper, mapper, relationship
+    from sqlalchemy.orm import registry, relationship
 
     from fractal_repositories.contrib.sqlalchemy.mixins import SqlAlchemyDao
 
@@ -150,8 +162,10 @@ def sqlalchemy_test_sub_model_dao(sqlalchemy_test_sub_model):
             )
 
         @staticmethod
-        def mapper(meta: MetaData, foreign_keys: Dict[str, Mapper]) -> Mapper:
-            return mapper(
+        def mapper(
+            meta: MetaData, mapper_registry: registry, foreign_keys: Dict[str, Type]
+        ) -> Type:
+            mapper_registry.map_imperatively(
                 TestSubModelDao,
                 TestSubModelDao.table(meta),
                 properties={
@@ -159,6 +173,7 @@ def sqlalchemy_test_sub_model_dao(sqlalchemy_test_sub_model):
                     for k, v in foreign_keys.items()
                 },
             )
+            return TestSubModelDao
 
         @staticmethod
         def table(meta: MetaData) -> Table:
@@ -182,9 +197,11 @@ def sqlalchemy_application_mapper(
     from fractal_repositories.contrib.sqlalchemy.mixins import DaoMapper
 
     class ApplicationMapper(DaoMapper):
-        def application_mappers(self, meta: MetaData):
-            mapper = sqlalchemy_test_model_dao.mapper(meta, {})
-            sqlalchemy_test_sub_model_dao.mapper(meta, {"_test_model": mapper})
+        def application_mappers(self, meta: MetaData, mapper_registry):
+            mapper = sqlalchemy_test_model_dao.mapper(meta, mapper_registry, {})
+            sqlalchemy_test_sub_model_dao.mapper(
+                meta, mapper_registry, {"_test_model": mapper}
+            )
 
     return ApplicationMapper
 
@@ -198,9 +215,11 @@ def sqlalchemy_application_mapper_error(
     from fractal_repositories.contrib.sqlalchemy.mixins import DaoMapper
 
     class ApplicationMapper(DaoMapper):
-        def application_mappers(self, meta: MetaData):
-            mapper = sqlalchemy_test_model_dao_error.mapper(meta, {})
-            sqlalchemy_test_sub_model_dao.mapper(meta, {"_test_model": mapper})
+        def application_mappers(self, meta: MetaData, mapper_registry):
+            mapper = sqlalchemy_test_model_dao_error.mapper(meta, mapper_registry, {})
+            sqlalchemy_test_sub_model_dao.mapper(
+                meta, mapper_registry, {"_test_model": mapper}
+            )
 
     return ApplicationMapper
 
@@ -222,7 +241,9 @@ def sqlalchemy_test_repository(
         entity_dao = sqlalchemy_test_model_dao
         application_mapper = sqlalchemy_application_mapper
 
-    return SqlAlchemyTestRepository(connection_str="sqlite://")
+    repo = SqlAlchemyTestRepository(connection_str="sqlite://")
+    yield repo
+    repo.dispose()
 
 
 @pytest.fixture
@@ -246,4 +267,6 @@ def sqlalchemy_test_repository_error(
         entity_dao = sqlalchemy_test_model_dao_error
         application_mapper = sqlalchemy_application_mapper_error
 
-    return SqlAlchemyTestRepository(connection_str="sqlite://")
+    repo = SqlAlchemyTestRepository(connection_str="sqlite://")
+    yield repo
+    repo.dispose()

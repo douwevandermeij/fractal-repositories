@@ -66,16 +66,10 @@ class MongoRepositoryMixin(Repository[EntityType]):
         return entity
 
     def update(self, entity: EntityType, upsert=False) -> EntityType:
-        if obj := self.collection.find_one(
-            dict(
-                id=entity.id,
-            )
-        ):
+        if obj := self.collection.find_one({"id": entity.id}):
             obj.update(entity.asdict())
             self.collection.update_one(
-                dict(
-                    id=entity.id,
-                ),
+                {"id": entity.id},
                 {"$set": obj},
             )
             return entity

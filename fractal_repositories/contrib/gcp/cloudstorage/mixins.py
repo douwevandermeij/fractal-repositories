@@ -46,7 +46,7 @@ class CloudStorageRepositoryMixin(Repository[EntityType]):
     def get_file(self, reference: str) -> bytes:
         # https://github.com/googleapis/python-storage/blob/main/samples/snippets/storage_download_into_memory.py
         blob = self.bucket.blob(reference)
-        return blob.download_as_string()
+        return blob.download_as_bytes()
 
     def delete_file(self, reference: str) -> bool:
         # https://github.com/googleapis/python-storage/blob/main/samples/snippets/storage_delete_file.py

@@ -51,7 +51,7 @@ class CachedRepository(Repository[EntityType]):
             self.cache_repository.add(entity)
 
     def reload_cache(self):
-        added = set([])
+        added = set()
         for entity in self.main_repository.find():
             self.cache_repository.update(entity, upsert=True)
             added.add(entity.id)

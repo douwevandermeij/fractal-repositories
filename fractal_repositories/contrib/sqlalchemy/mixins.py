@@ -22,7 +22,7 @@ from fractal_specifications.generic.specification import Specification
 from sqlalchemy import MetaData, Table, create_engine  # type: ignore
 from sqlalchemy.engine import Engine  # type: ignore
 from sqlalchemy.exc import ArgumentError, DBAPIError  # type: ignore
-from sqlalchemy.orm import Mapper, Session, sessionmaker  # type: ignore
+from sqlalchemy.orm import Session, registry, sessionmaker  # type: ignore
 from sqlalchemy.sql.elements import BooleanClauseList  # type: ignore
 
 from fractal_repositories.core.repositories import Entity, EntityType, Repository
@@ -40,7 +40,9 @@ class SqlAlchemyException(Exception):
 class SqlAlchemyDao(ABC):
     @staticmethod
     @abstractmethod
-    def mapper(meta: MetaData, foreign_keys: Dict[str, Mapper]) -> Mapper:
+    def mapper(
+        meta: MetaData, mapper_registry: registry, foreign_keys: Dict[str, Type]
+    ) -> Type:
         raise NotImplementedError
 
     @staticmethod
@@ -58,22 +60,25 @@ EntityDao = TypeVar("EntityDao", bound=SqlAlchemyDao)
 
 class DaoMapper(ABC):
     instance = None
+    done: bool
+    mapper_registry: registry
 
     def __new__(cls, *args, **kwargs):
         if not isinstance(cls.instance, cls):
             cls.instance = object.__new__(cls)
             cls.instance.done = False
+            cls.instance.mapper_registry = registry()
         return cls.instance
 
     def start_mappers(self, engine: Engine):
         if not self.done:
             meta = MetaData()
-            self.application_mappers(meta)
+            self.application_mappers(meta, self.mapper_registry)
             meta.create_all(engine)
-            self.done: bool = True
+            self.done = True
 
     @abstractmethod
-    def application_mappers(self, meta: MetaData):
+    def application_mappers(self, meta: MetaData, mapper_registry: registry):
         raise NotImplementedError
 
 
@@ -122,16 +127,25 @@ class SqlAlchemyRepositoryMixin(
         super().__init__(*args, **kwargs)
 
         self.connection_str = connection_str
-        engine = create_engine(
+        self.engine = create_engine(
             self.connection_str,
         )
 
-        self.application_mapper().start_mappers(engine)
+        self.application_mapper().start_mappers(self.engine)
 
         self.session_factory = sessionmaker(
-            bind=engine,
+            bind=self.engine,
             expire_on_commit=False,
         )
+
+    def dispose(self):
+        """Dispose of the database engine and close all connections."""
+        if hasattr(self, "engine"):
+            self.engine.dispose()
+
+    def __del__(self):
+        """Ensure engine is disposed when repository is garbage collected."""
+        self.dispose()
 
     def add(self, entity: EntityType) -> EntityType:
         return self.__add(entity, self.entity_dao)
@@ -143,7 +157,7 @@ class SqlAlchemyRepositoryMixin(
                 self.session.add(entity_dao)
                 self.commit()
             except DBAPIError as e:
-                raise SqlAlchemyException(e)
+                raise SqlAlchemyException(e) from e
         return entity
 
     def update(self, entity: EntityType, *, upsert=False) -> EntityType:
@@ -161,21 +175,21 @@ class SqlAlchemyRepositoryMixin(
                 )
             except ObjectNotFoundException:
                 existing_entity_dao = None
-            except ArgumentError:  # Python 3.8 error
+            except ArgumentError as e:  # Python 3.8 error
                 raise UnknownListItemTypeException(
                     f"DAO '{entity_dao_class}' has an unknown list collection DAO, please add the type for the list."
-                )
+                ) from e
             if existing_entity_dao:
                 try:
                     self.__update_existing_record(
                         entity, entity_dao_class, existing_entity_dao
                     )
                 except DBAPIError as e:
-                    raise SqlAlchemyException(e)
-                except AttributeError:  # Python >= 3.9 error
+                    raise SqlAlchemyException(e) from e
+                except AttributeError as e:  # Python >= 3.9 error
                     raise UnknownListItemTypeException(
                         f"DAO '{entity_dao_class}' has an unknown list collection DAO, please add the type for the list."
-                    )
+                    ) from e
                 return entity
             elif upsert:
                 return self.__add(entity, entity_dao_class)
@@ -275,7 +289,7 @@ class SqlAlchemyRepositoryMixin(
                     self.__dao_to_domain(sub_entity, item_domain_model, item_entity_dao)
                     for sub_entity in getattr(entity, field)
                 ]
-        fields = set(f.name for f in dataclasses.fields(domain_model))
+        fields = {f.name for f in dataclasses.fields(domain_model)}
         return domain_model.from_dict({k: v for k, v in d.items() if k in fields})
 
     def _find_one_raw(
@@ -302,7 +316,7 @@ class SqlAlchemyRepositoryMixin(
         filters = self._get_filters(entity_dao_class, specification)
 
         with self:
-            ret = self.session.query(entity_dao_class or self.entity_dao)
+            ret = self.session.query(entity_dao_class or self.entity_dao)  # type: ignore[call-overload]
         if type(filters) is dict:
             ret = ret.filter_by(**filters)
         if type(filters) is BooleanClauseList:
@@ -359,7 +373,7 @@ class SqlAlchemyRepositoryMixin(
     def count(self, specification: Optional[Specification] = None) -> int:
         filters = self._get_filters(self.entity_dao, specification)
         with self:
-            ret = self.session.query(self.entity_dao)
+            ret = self.session.query(self.entity_dao)  # type: ignore[call-overload]
         if type(filters) is dict:
             ret = ret.filter_by(**filters)
         if type(filters) is BooleanClauseList:
@@ -368,8 +382,10 @@ class SqlAlchemyRepositoryMixin(
 
     def is_healthy(self) -> bool:
         try:
+            from sqlalchemy import text
+
             with self:
-                self.session.execute("SELECT 1")
+                self.session.execute(text("SELECT 1"))
         except Exception as e:
             logging.exception(f"Database is unhealthy! {e}")
             return False

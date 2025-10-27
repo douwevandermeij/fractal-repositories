@@ -66,5 +66,5 @@ class DistributedReadRepository(ReadRepository[EntityType]):
 
     def is_healthy(self) -> bool:
         return self.main_repository.is_healthy() and all(
-            map(lambda i: i.repository.is_healthy(), self.other_repositories)
+            i.repository.is_healthy() for i in self.other_repositories
         )

@@ -254,7 +254,7 @@ def mocker_file_open_data(mocker, mocker_os_path_exists):
     def wrapper(value):
         data = (
             value
-            if type(value) == str
+            if isinstance(value, str)
             else "\n".join([json.dumps(e.asdict()) for e in value])
         )
         mocked_data = mocker.mock_open(read_data=data)

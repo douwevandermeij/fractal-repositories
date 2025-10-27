@@ -55,7 +55,7 @@ class DjangoModelRepositoryMixin(Repository[EntityType]):
         try:
             obj = self.django_model.objects.get(_filter)
         except self.django_model.DoesNotExist:
-            raise self._object_not_found()
+            raise self._object_not_found() from None
         return obj
 
     def remove_one(self, specification: Specification):

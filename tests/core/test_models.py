@@ -1,7 +1,9 @@
 from dataclasses import dataclass
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from decimal import Decimal
+from enum import Enum
 from typing import List
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -120,7 +122,7 @@ def test_model_nested_skip_types(nested_model_instance, model_instance, now, dec
     )[
         "nested_list"
     ][0]
-    assert type(m) == type(model_instance)
+    assert type(m) is type(model_instance)
     assert m.now == now
 
 
@@ -183,3 +185,210 @@ def test_pydantic_dataclass_date_datetime(input, output):
         dt: datetime = None
 
     assert M.clean(**input).asdict() == output
+
+
+def test_model_with_time_field():
+    """Test that time fields are properly converted to isoformat."""
+    from fractal_repositories.core.entity import Entity
+
+    @dataclass
+    class M(Entity):
+        id: str
+        meeting_time: time
+
+    test_time = time(14, 30, 45)
+    model = M(id="1", meeting_time=test_time)
+
+    result = model.asdict()
+    assert result["meeting_time"] == test_time.isoformat()
+    assert result["meeting_time"] == "14:30:45"
+
+
+def test_model_with_uuid_field():
+    """Test that UUID fields are properly converted to strings."""
+    from fractal_repositories.core.entity import Entity
+
+    @dataclass
+    class M(Entity):
+        user_id: UUID
+        name: str
+
+    test_uuid = uuid4()
+    model = M(id="1", user_id=test_uuid, name="John")
+
+    result = model.asdict()
+    assert result["user_id"] == str(test_uuid)
+    assert isinstance(result["user_id"], str)
+    assert result["name"] == "John"
+
+
+def test_model_with_uuid_skip_type():
+    """Test that UUID fields are not converted when in skip_types."""
+    from fractal_repositories.core.entity import Entity
+
+    @dataclass
+    class M(Entity):
+        user_id: UUID
+        name: str
+
+    test_uuid = uuid4()
+    model = M(id="1", user_id=test_uuid, name="John")
+
+    result = model.asdict(skip_types=[UUID])
+    assert result["user_id"] == test_uuid
+    assert isinstance(result["user_id"], UUID)
+    assert result["name"] == "John"
+
+
+def test_model_with_uuid_list():
+    """Test that lists of UUIDs are properly converted."""
+    from fractal_repositories.core.entity import Entity
+
+    @dataclass
+    class M(Entity):
+        tag_ids: List[UUID]
+
+    uuid1 = uuid4()
+    uuid2 = uuid4()
+    model = M(id="1", tag_ids=[uuid1, uuid2])
+
+    result = model.asdict()
+    assert result["tag_ids"] == [str(uuid1), str(uuid2)]
+    assert all(isinstance(uid, str) for uid in result["tag_ids"])
+
+
+def test_model_with_enum_field():
+    """Test that Enum fields are properly converted to their values."""
+    from fractal_repositories.core.entity import Entity
+
+    class Status(Enum):
+        ACTIVE = "active"
+        INACTIVE = "inactive"
+        PENDING = "pending"
+
+    @dataclass
+    class M(Entity):
+        name: str
+        status: Status
+
+    model = M(id="1", name="John", status=Status.ACTIVE)
+
+    result = model.asdict()
+    assert result["status"] == "active"
+    assert result["status"] == Status.ACTIVE.value
+    assert isinstance(result["status"], str)
+
+
+def test_model_with_enum_skip_type():
+    """Test that Enum fields are not converted when in skip_types."""
+    from fractal_repositories.core.entity import Entity
+
+    class Status(Enum):
+        ACTIVE = "active"
+        INACTIVE = "inactive"
+
+    @dataclass
+    class M(Entity):
+        name: str
+        status: Status
+
+    model = M(id="1", name="John", status=Status.ACTIVE)
+
+    result = model.asdict(skip_types=[Enum])
+    assert result["status"] == Status.ACTIVE
+    assert isinstance(result["status"], Status)
+
+
+def test_model_with_int_enum():
+    """Test that integer Enums are properly converted."""
+    from fractal_repositories.core.entity import Entity
+
+    class Priority(Enum):
+        LOW = 1
+        MEDIUM = 2
+        HIGH = 3
+
+    @dataclass
+    class M(Entity):
+        title: str
+        priority: Priority
+
+    model = M(id="1", title="Task", priority=Priority.HIGH)
+
+    result = model.asdict()
+    assert result["priority"] == 3
+    assert result["priority"] == Priority.HIGH.value
+    assert isinstance(result["priority"], int)
+
+
+def test_model_with_enum_list():
+    """Test that lists of Enums are properly converted."""
+    from fractal_repositories.core.entity import Entity
+
+    class Tag(Enum):
+        URGENT = "urgent"
+        REVIEW = "review"
+        DONE = "done"
+
+    @dataclass
+    class M(Entity):
+        tags: List[Tag]
+
+    model = M(id="1", tags=[Tag.URGENT, Tag.REVIEW])
+
+    result = model.asdict()
+    assert result["tags"] == ["urgent", "review"]
+    assert all(isinstance(tag, str) for tag in result["tags"])
+
+
+def test_model_with_uuid_and_enum():
+    """Test that UUID and Enum work together in the same model."""
+    from fractal_repositories.core.entity import Entity
+
+    class Status(Enum):
+        ACTIVE = "active"
+        INACTIVE = "inactive"
+
+    @dataclass
+    class M(Entity):
+        user_id: UUID
+        status: Status
+        name: str
+
+    test_uuid = uuid4()
+    model = M(id="1", user_id=test_uuid, status=Status.ACTIVE, name="John")
+
+    result = model.asdict()
+    assert result["user_id"] == str(test_uuid)
+    assert result["status"] == "active"
+    assert result["name"] == "John"
+
+
+def test_model_with_nested_uuid_and_enum():
+    """Test that nested models with UUID and Enum are properly converted."""
+    from fractal_repositories.core.entity import Entity
+
+    class Role(Enum):
+        ADMIN = "admin"
+        USER = "user"
+
+    @dataclass
+    class User(Entity):
+        user_id: UUID
+        role: Role
+
+    @dataclass
+    class Organization(Entity):
+        users: List[User]
+
+    uuid1 = uuid4()
+    uuid2 = uuid4()
+    user1 = User(id="u1", user_id=uuid1, role=Role.ADMIN)
+    user2 = User(id="u2", user_id=uuid2, role=Role.USER)
+    org = Organization(id="org1", users=[user1, user2])
+
+    result = org.asdict()
+    assert result["users"][0]["user_id"] == str(uuid1)
+    assert result["users"][0]["role"] == "admin"
+    assert result["users"][1]["user_id"] == str(uuid2)
+    assert result["users"][1]["role"] == "user"
