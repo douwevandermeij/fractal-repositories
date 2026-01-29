@@ -54,7 +54,11 @@ class MongoRepositoryMixin(Repository[EntityType]):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-        self.client, self.db = setup_mongo_connection(**kwargs)
+        if client := kwargs.get("client"):
+            self.client = client
+            self.db = client[kwargs.get("database", "")]
+        else:
+            self.client, self.db = setup_mongo_connection(**kwargs)
         if not collection and self.entity:
             collection = self.entity.__name__  # type: ignore
         if collection_prefix:

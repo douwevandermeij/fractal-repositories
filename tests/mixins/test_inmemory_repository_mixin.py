@@ -68,6 +68,9 @@ def test_find(inmemory_repository, an_object):
 
 
 def test_count(inmemory_repository, an_object, another_object):
+    assert type(inmemory_repository.count()) is int
+    assert inmemory_repository.count() == 0
+
     inmemory_repository.add(an_object)
     inmemory_repository.add(another_object)
 

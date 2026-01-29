@@ -37,6 +37,10 @@ def test_count(mongo_test_repository, mongo_test_model):
     obj2 = get_obj(mongo_test_model)
     obj1.id = "1"
     obj2.id = "2"
+
+    assert type(mongo_test_repository.count()) is int
+    assert mongo_test_repository.count() == 0
+
     mongo_test_repository.add(obj1)
     mongo_test_repository.add(obj2)
 
