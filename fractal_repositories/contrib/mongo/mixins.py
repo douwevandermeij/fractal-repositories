@@ -69,7 +69,7 @@ class MongoRepositoryMixin(Repository[EntityType]):
         self.collection.insert_one(entity.asdict())
         return entity
 
-    def update(self, entity: EntityType, upsert=False) -> EntityType:
+    def update(self, entity: EntityType, *, upsert=False) -> EntityType:
         if obj := self.collection.find_one({"id": entity.id}):
             obj.update(entity.asdict())
             self.collection.update_one(

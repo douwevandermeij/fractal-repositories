@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Generic, Iterator, Optional, Type, TypeVar
+from typing import Any, Generic, Iterator, Optional, Type, TypeVar
 
+from fractal_specifications.generic.operators import EqualsSpecification
 from fractal_specifications.generic.specification import Specification
 
 from fractal_repositories.core.entity import Entity
@@ -64,6 +65,27 @@ class ReadRepository(Generic[EntityType], ABC):
             user = repo.find_one(Specification.parse(email="alice@example.com"))
         """
         raise NotImplementedError
+
+    def get(self, id: Any) -> EntityType:
+        """
+        Find a single entity by its ID.
+
+        Convenience proxy for ``find_one(EqualsSpecification("id", id))``.
+
+        Args:
+            id: The entity ID to look up (str, int, UUID, or any other type used as ID)
+
+        Returns:
+            The matching entity
+
+        Raises:
+            ObjectNotFoundException: If no entity with the given ID exists
+
+        Example:
+            user = repo.get("abc123")
+            user = repo.get(42)
+        """
+        return self.find_one(specification=EqualsSpecification("id", id))
 
     @abstractmethod
     def find(
@@ -224,6 +246,21 @@ class WriteRepository(Generic[EntityType], ABC):
             repo.remove_one(Specification.parse(email="alice@example.com"))
         """
         raise NotImplementedError
+
+    def delete(self, id: Any):
+        """
+        Remove a single entity by its ID.
+
+        Convenience proxy for ``remove_one(EqualsSpecification("id", id))``.
+
+        Args:
+            id: The entity ID to remove (str, int, UUID, or any other type used as ID)
+
+        Example:
+            repo.delete("abc123")
+            repo.delete(42)
+        """
+        self.remove_one(specification=EqualsSpecification("id", id))
 
     @abstractmethod
     def is_healthy(self) -> bool:
