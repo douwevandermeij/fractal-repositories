@@ -1,8 +1,14 @@
 import dataclasses
+import enum
 
 from fractal_specifications.generic.operators import EqualsSpecification
 
 from fractal_repositories.core.repositories import EntityType, Repository
+
+
+class OnWriteConflict(enum.Enum):
+    RAISE = "raise"
+    PRESERVE = "preserve"
 
 
 class FieldPermissionsRepository(Repository[EntityType]):
@@ -20,11 +26,11 @@ class FieldPermissionsRepository(Repository[EntityType]):
         inner: Repository[EntityType],
         *,
         forbidden_exception_class=PermissionError,
-        on_write_conflict="raise",
+        on_write_conflict=OnWriteConflict.RAISE,
     ):
-        if on_write_conflict not in ("raise", "preserve"):
+        if not isinstance(on_write_conflict, OnWriteConflict):
             raise ValueError(
-                f"on_write_conflict must be 'raise' or 'preserve', got {on_write_conflict!r}"
+                f"on_write_conflict must be a OnWriteConflict member, got {on_write_conflict!r}"
             )
         self.entity = inner.entity
         super().__init__()
@@ -36,6 +42,21 @@ class FieldPermissionsRepository(Repository[EntityType]):
     def _field_permissions(self):
         fp = getattr(self._inner.entity, "field_permissions", None)
         return fp() if callable(fp) else {}
+
+    @staticmethod
+    def _field_default(entity, field):
+        """Return the effective default for a dataclass field.
+
+        Falls back to ``default_factory()`` when present, or the type's zero
+        value (``str()`` → ``""``, ``int()`` → ``0``, …) when neither a
+        default nor a factory is defined.
+        """
+        df = entity.__dataclass_fields__[field]
+        if df.default is not dataclasses.MISSING:
+            return df.default
+        if df.default_factory is not dataclasses.MISSING:
+            return df.default_factory()
+        return type(getattr(entity, field))()
 
     def _validate_write_permissions(
         self, entity, field_permissions, roles, stored=None
@@ -66,36 +87,38 @@ class FieldPermissionsRepository(Repository[EntityType]):
                             f"No permission to write field '{field}'"
                         )
                 else:
-                    df = entity.__dataclass_fields__[field]
-                    default = df.default
-                    if default is dataclasses.MISSING:
-                        if df.default_factory is not dataclasses.MISSING:
-                            default = df.default_factory()
-                        else:
-                            default = type(getattr(entity, field))()
-                    if getattr(entity, field, default) != default:
+                    default = self._field_default(entity, field)
+                    if getattr(entity, field) != default:
                         raise self._forbidden_exception_class(
                             f"No permission to write field '{field}'"
                         )
 
-    def _apply_write_preserve(self, entity, field_permissions, roles, stored):
+    def _apply_write_preserve(self, entity, field_permissions, roles, stored=None):
         """
-        Silently restore secured field values from ``stored`` for callers that lack
-        write permission, rather than raising.
+        Silently reset secured fields for callers that lack write permission.
+
+        When ``stored`` is provided (update), restricted fields are copied from
+        the stored entity. When ``stored`` is ``None`` (add), they are reset to
+        the field's dataclass default (or type zero value if no default exists).
 
         Args:
             entity: The entity being written (mutated in-place).
             field_permissions: Mapping of field name → permission config.
             roles: The caller's roles.
-            stored: The existing entity whose values are used as the source of truth.
+            stored: The existing stored entity, or ``None`` for new entities.
 
         Returns:
-            The entity with restricted fields reset to their stored values.
+            The entity with restricted fields reset.
         """
         for field, p in field_permissions.items():
             write_roles = p.get("write_roles")
             if write_roles is not None and not any(r in write_roles for r in roles):
-                setattr(entity, field, getattr(stored, field))
+                value = (
+                    getattr(stored, field)
+                    if stored is not None
+                    else self._field_default(entity, field)
+                )
+                setattr(entity, field, value)
         return entity
 
     def _apply_read_mask(self, entity, field_permissions, roles):
@@ -206,6 +229,11 @@ class FieldPermissionsRepository(Repository[EntityType]):
         """
         Add a new entity, optionally enforcing write permissions.
 
+        When ``on_write_conflict="raise"`` (default), raises if a restricted field
+        is set to a non-default value. When ``on_write_conflict="preserve"``,
+        restricted fields are silently reset to their dataclass default (or type
+        zero value) instead of raising.
+
         Args:
             entity: The entity to add.
             roles: Caller's roles. Pass ``None`` to skip validation (internal use).
@@ -214,11 +242,16 @@ class FieldPermissionsRepository(Repository[EntityType]):
             The added entity.
 
         Raises:
-            forbidden_exception_class: If a restricted field is set to a non-default
-                value without the required write role.
+            forbidden_exception_class: If ``on_write_conflict="raise"`` and a
+                restricted field is set to a non-default value without the required
+                write role.
         """
         if roles is not None:
-            self._validate_write_permissions(entity, self._field_permissions, roles)
+            perms = self._field_permissions
+            if self._on_write_conflict == OnWriteConflict.PRESERVE:
+                entity = self._apply_write_preserve(entity, perms, roles)
+            else:
+                self._validate_write_permissions(entity, perms, roles)
         return self._inner.add(entity)
 
     def update(self, entity: EntityType, *, upsert=False, roles=None) -> EntityType:
@@ -257,7 +290,7 @@ class FieldPermissionsRepository(Repository[EntityType]):
             perms = self._field_permissions
             try:
                 stored = self._inner.find_one(EqualsSpecification("id", entity.id))
-                if self._on_write_conflict == "preserve":
+                if self._on_write_conflict == OnWriteConflict.PRESERVE:
                     entity = self._apply_write_preserve(entity, perms, roles, stored)
                 else:
                     self._validate_write_permissions(
@@ -266,8 +299,11 @@ class FieldPermissionsRepository(Repository[EntityType]):
             except Exception as e:
                 if isinstance(e, self._forbidden_exception_class):
                     raise
-                # Entity not found (upsert) — fall back to add-style validation
-                self._validate_write_permissions(entity, perms, roles)
+                # Entity not found (upsert) — fall back to add-style handling
+                if self._on_write_conflict == OnWriteConflict.PRESERVE:
+                    entity = self._apply_write_preserve(entity, perms, roles)
+                else:
+                    self._validate_write_permissions(entity, perms, roles)
         return self._inner.update(entity, upsert=upsert)
 
     def remove_one(self, specification):

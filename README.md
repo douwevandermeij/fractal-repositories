@@ -83,6 +83,106 @@ class FirestoreDemoRepository(DemoRepository, FirestoreRepositoryMixin[DemoModel
     ...
 ```
 
+## Utilities
+
+### FieldPermissionsRepository
+
+`FieldPermissionsRepository` wraps any repository to enforce field-level read masking and write validation based on the caller's roles. It is useful when different users should see or modify only certain fields of the same entity — for example, a superadmin can set a sensitive field that regular users can never read or overwrite.
+
+#### Defining field permissions on an entity
+
+Add a `field_permissions()` classmethod to your entity. Each entry maps a field name to its `read_roles` and/or `write_roles`:
+
+```python
+from dataclasses import dataclass
+from fractal_repositories.core.entity import Entity
+
+
+@dataclass
+class Order(Entity):
+    id: str
+    amount: float
+    internal_notes: str = ""  # only visible/writable by staff
+
+    @classmethod
+    def field_permissions(cls):
+        return {
+            "internal_notes": {
+                "read_roles": ["staff"],
+                "write_roles": ["staff"],
+            }
+        }
+```
+
+Entities without a `field_permissions()` method are handled transparently — no masking or validation is applied.
+
+#### Wrapping a repository
+
+```python
+from fractal_repositories.utils.field_permissions_repository import (
+    FieldPermissionsRepository,
+    OnWriteConflict,
+)
+
+inner_repo = OrderRepository()  # any Repository implementation
+repo = FieldPermissionsRepository(inner_repo)
+```
+
+#### Read masking
+
+Pass `roles` to `find_one()` or `find()`. Fields the caller is not allowed to read are blanked to `""`. Pass `roles=None` to skip masking (e.g. for internal service calls):
+
+```python
+# Staff sees everything
+order = repo.find_one(Specification.parse(id="1"), roles=["staff"])
+# order.internal_notes == "confidential"
+
+# Regular user gets the field blanked
+order = repo.find_one(Specification.parse(id="1"), roles=["customer"])
+# order.internal_notes == ""
+
+# Internal call — no masking
+order = repo.find_one(Specification.parse(id="1"))
+# order.internal_notes == "confidential"
+```
+
+#### Write validation
+
+Pass `roles` to `add()` or `update()`. By default (`OnWriteConflict.RAISE`), a `PermissionError` is raised if the caller submits a non-default value for a field they are not allowed to write:
+
+```python
+# Allowed — internal_notes is at its default value
+repo.add(Order(id="1", amount=99.0), roles=["customer"])
+
+# Raises PermissionError — customer cannot set internal_notes
+repo.add(Order(id="1", amount=99.0, internal_notes="hack"), roles=["customer"])
+```
+
+#### on_write_conflict="preserve" — PUT-style APIs
+
+When callers send back the full entity (e.g. a REST PUT), they will have received secured fields blanked to `""`. Submitting `""` against a staff-set value would raise under the default mode. Use `OnWriteConflict.PRESERVE` to silently restore the stored value instead, so the rest of the update proceeds normally:
+
+```python
+repo = FieldPermissionsRepository(inner_repo, on_write_conflict=OnWriteConflict.PRESERVE)
+
+# Staff sets a note
+repo.update(Order(id="1", amount=99.0, internal_notes="VIP customer"), roles=["staff"])
+
+# Customer updates the amount — internal_notes is silently preserved, not raised
+repo.update(Order(id="1", amount=120.0, internal_notes=""), roles=["customer"])
+# stored: internal_notes == "VIP customer"
+```
+
+#### Custom exception class
+
+Replace `PermissionError` with your own exception by passing `forbidden_exception_class`:
+
+```python
+from myapp.exceptions import ForbiddenError
+
+repo = FieldPermissionsRepository(inner_repo, forbidden_exception_class=ForbiddenError)
+```
+
 ## Contrib
 
 Fractal Repositories comes with ready to use adapter mixins for:

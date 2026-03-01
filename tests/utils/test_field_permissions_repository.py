@@ -9,6 +9,7 @@ from fractal_repositories.mixins.inmemory_repository_mixin import (
 )
 from fractal_repositories.utils.field_permissions_repository import (
     FieldPermissionsRepository,
+    OnWriteConflict,
 )
 
 # ---------------------------------------------------------------------------
@@ -397,20 +398,22 @@ def test_no_default_user_can_update_unchanged_zero_value():
 
 
 # ---------------------------------------------------------------------------
-# 7. on_write_conflict="preserve"
+# 7. on_write_conflict=OnWriteConflict.PRESERVE
 # ---------------------------------------------------------------------------
 
 
 def test_invalid_on_write_conflict_raises():
     inner = make_secure_inner()
     with pytest.raises(ValueError):
-        FieldPermissionsRepository(inner, on_write_conflict="invalid")
+        FieldPermissionsRepository(
+            inner, on_write_conflict="preserve"
+        )  # string, not enum
 
 
 def test_preserve_user_can_update_unprotected_field_after_admin_sets_secret():
     """Core use case: user updates an unprotected field; admin-set secret is preserved."""
     inner = make_secure_inner()
-    repo = FieldPermissionsRepository(inner, on_write_conflict="preserve")
+    repo = FieldPermissionsRepository(inner, on_write_conflict=OnWriteConflict.PRESERVE)
     inner.add(SecureObject("1", name="original", secret="admin_value"))
     # User reads back masked secret ("") and submits the full entity
     repo.update(SecureObject("1", name="updated", secret=""), roles=["user"])
@@ -422,7 +425,7 @@ def test_preserve_user_can_update_unprotected_field_after_admin_sets_secret():
 def test_preserve_user_submitting_changed_secret_is_silently_ignored():
     """Even if the user submits a non-empty secret, it is dropped, not raised."""
     inner = make_secure_inner()
-    repo = FieldPermissionsRepository(inner, on_write_conflict="preserve")
+    repo = FieldPermissionsRepository(inner, on_write_conflict=OnWriteConflict.PRESERVE)
     inner.add(SecureObject("1", secret="admin_value"))
     repo.update(SecureObject("1", secret="hacked"), roles=["user"])
     assert repo.get("1").secret == "admin_value"
@@ -431,25 +434,39 @@ def test_preserve_user_submitting_changed_secret_is_silently_ignored():
 def test_preserve_admin_can_still_update_secret():
     """preserve mode does not restrict callers that DO have write permission."""
     inner = make_secure_inner()
-    repo = FieldPermissionsRepository(inner, on_write_conflict="preserve")
+    repo = FieldPermissionsRepository(inner, on_write_conflict=OnWriteConflict.PRESERVE)
     inner.add(SecureObject("1", secret="old"))
     repo.update(SecureObject("1", secret="new"), roles=["admin"])
     assert repo.get("1").secret == "new"
 
 
-def test_preserve_upsert_new_entity_default_secret_allowed():
-    """Upsert-as-create falls back to add-style validation; default value is allowed."""
+def test_preserve_upsert_new_entity_secret_reset_to_default():
+    """Upsert-as-create: non-default secret is silently reset to the dataclass default."""
     inner = make_secure_inner()
-    repo = FieldPermissionsRepository(inner, on_write_conflict="preserve")
-    repo.update(
-        SecureObject("99", secret="secret_default"), upsert=True, roles=["user"]
-    )
-    assert repo.get("99").id == "99"
+    repo = FieldPermissionsRepository(inner, on_write_conflict=OnWriteConflict.PRESERVE)
+    repo.update(SecureObject("99", secret="hacked"), upsert=True, roles=["user"])
+    assert repo.get("99").secret == "secret_default"
 
 
-def test_preserve_upsert_new_entity_changed_secret_raises():
-    """Upsert-as-create falls back to add-style validation; non-default value raises."""
+def test_preserve_add_user_secret_reset_to_default():
+    """add: non-default secret is silently reset to the dataclass default."""
     inner = make_secure_inner()
-    repo = FieldPermissionsRepository(inner, on_write_conflict="preserve")
-    with pytest.raises(PermissionError):
-        repo.update(SecureObject("99", secret="hacked"), upsert=True, roles=["user"])
+    repo = FieldPermissionsRepository(inner, on_write_conflict=OnWriteConflict.PRESERVE)
+    repo.add(SecureObject("1", secret="hacked"), roles=["user"])
+    assert repo.get("1").secret == "secret_default"
+
+
+def test_preserve_add_admin_secret_stored_as_submitted():
+    """add: admin's submitted value is stored unchanged."""
+    inner = make_secure_inner()
+    repo = FieldPermissionsRepository(inner, on_write_conflict=OnWriteConflict.PRESERVE)
+    repo.add(SecureObject("1", secret="admin_value"), roles=["admin"])
+    assert repo.get("1").secret == "admin_value"
+
+
+def test_preserve_add_no_default_field_reset_to_zero_value():
+    """add: secured field with no dataclass default is reset to type zero value ("")."""
+    inner = make_no_default_inner()
+    repo = FieldPermissionsRepository(inner, on_write_conflict=OnWriteConflict.PRESERVE)
+    repo.add(NoDefaultSecureObject("1", secret="hacked"), roles=["user"])
+    assert repo.get("1").secret == ""
