@@ -126,7 +126,7 @@ class FieldPermissionsRepository(Repository[EntityType]):
         Blank out fields the caller is not allowed to read.
 
         Fields without ``read_roles`` defined are always visible. Fields with
-        ``read_roles`` are set to ``""`` when none of the caller's roles match.
+        ``read_roles`` are set to ``None`` when none of the caller's roles match.
 
         Args:
             entity: The entity to mask (mutated in-place).
@@ -140,7 +140,7 @@ class FieldPermissionsRepository(Repository[EntityType]):
             read_roles = perms.get("read_roles")
             if read_roles is not None and not any(role in read_roles for role in roles):
                 if hasattr(entity, field):
-                    setattr(entity, field, "")
+                    setattr(entity, field, None)
         return entity
 
     def find_one(self, specification, *, roles=None) -> EntityType:

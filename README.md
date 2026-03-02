@@ -130,7 +130,7 @@ repo = FieldPermissionsRepository(inner_repo)
 
 #### Read masking
 
-Pass `roles` to `find_one()` or `find()`. Fields the caller is not allowed to read are blanked to `""`. Pass `roles=None` to skip masking (e.g. for internal service calls):
+Pass `roles` to `find_one()` or `find()`. Fields the caller is not allowed to read are set to `None`. Pass `roles=None` to skip masking (e.g. for internal service calls):
 
 ```python
 # Staff sees everything
@@ -139,7 +139,7 @@ order = repo.find_one(Specification.parse(id="1"), roles=["staff"])
 
 # Regular user gets the field blanked
 order = repo.find_one(Specification.parse(id="1"), roles=["customer"])
-# order.internal_notes == ""
+# order.internal_notes is None
 
 # Internal call — no masking
 order = repo.find_one(Specification.parse(id="1"))
@@ -160,7 +160,7 @@ repo.add(Order(id="1", amount=99.0, internal_notes="hack"), roles=["customer"])
 
 #### on_write_conflict="preserve" — PUT-style APIs
 
-When callers send back the full entity (e.g. a REST PUT), they will have received secured fields blanked to `""`. Submitting `""` against a staff-set value would raise under the default mode. Use `OnWriteConflict.PRESERVE` to silently restore the stored value instead, so the rest of the update proceeds normally:
+When callers send back the full entity (e.g. a REST PUT), they will have received secured fields set to `None`. Submitting `None` against a staff-set value would raise under the default mode. Use `OnWriteConflict.PRESERVE` to silently restore the stored value instead, so the rest of the update proceeds normally:
 
 ```python
 repo = FieldPermissionsRepository(inner_repo, on_write_conflict=OnWriteConflict.PRESERVE)
@@ -169,7 +169,7 @@ repo = FieldPermissionsRepository(inner_repo, on_write_conflict=OnWriteConflict.
 repo.update(Order(id="1", amount=99.0, internal_notes="VIP customer"), roles=["staff"])
 
 # Customer updates the amount — internal_notes is silently preserved, not raised
-repo.update(Order(id="1", amount=120.0, internal_notes=""), roles=["customer"])
+repo.update(Order(id="1", amount=120.0, internal_notes=None), roles=["customer"])
 # stored: internal_notes == "VIP customer"
 ```
 

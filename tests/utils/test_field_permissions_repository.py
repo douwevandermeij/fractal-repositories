@@ -142,7 +142,7 @@ def test_find_no_roles(repo):
     repo.add(SecureObject("1", secret="top_secret"))
     repo.add(SecureObject("2", secret="also_secret"))
     results = list(repo.find(roles=None))
-    assert all(r.secret != "" for r in results)
+    assert all(r.secret is not None for r in results)
 
 
 def test_get_returns_unmasked(repo):
@@ -229,21 +229,21 @@ def test_find_one_admin_sees_secret(repo):
 def test_find_one_user_secret_blanked(repo):
     repo.add(SecureObject("1", secret="top_secret"))
     result = repo.find_one(Specification.parse(id="1"), roles=["user"])
-    assert result.secret == ""
+    assert result.secret is None
 
 
 def test_find_admin_sees_secret(repo):
     repo.add(SecureObject("1", secret="s1"))
     repo.add(SecureObject("2", secret="s2"))
     results = list(repo.find(roles=["admin"]))
-    assert all(r.secret != "" for r in results)
+    assert all(r.secret is not None for r in results)
 
 
 def test_find_user_secret_blanked(repo):
     repo.add(SecureObject("1", secret="s1"))
     repo.add(SecureObject("2", secret="s2"))
     results = list(repo.find(roles=["user"]))
-    assert all(r.secret == "" for r in results)
+    assert all(r.secret is None for r in results)
 
 
 def test_find_one_roles_none_no_masking(repo):
@@ -415,8 +415,8 @@ def test_preserve_user_can_update_unprotected_field_after_admin_sets_secret():
     inner = make_secure_inner()
     repo = FieldPermissionsRepository(inner, on_write_conflict=OnWriteConflict.PRESERVE)
     inner.add(SecureObject("1", name="original", secret="admin_value"))
-    # User reads back masked secret ("") and submits the full entity
-    repo.update(SecureObject("1", name="updated", secret=""), roles=["user"])
+    # User reads back masked secret (None) and submits the full entity
+    repo.update(SecureObject("1", name="updated", secret=None), roles=["user"])
     stored = repo.get("1")
     assert stored.name == "updated"
     assert stored.secret == "admin_value"  # silently preserved
