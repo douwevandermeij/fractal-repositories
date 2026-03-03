@@ -57,6 +57,15 @@ class MemoizedRepository(Repository[EntityType]):
         self._cache[entity.id] = result  # update in place; spec_index stays valid
         return result
 
+    def invalidate(self, entity_id: str) -> None:
+        """Remove a single entry from the in-process cache by entity ID.
+
+        The inner repository is not touched; only the local cache entry is
+        evicted.  Stale _spec_index entries pointing to entity_id are cleaned
+        up lazily on the next find_one call.
+        """
+        self._cache.pop(entity_id, None)
+
     def remove_one(self, specification):
         if specification in self._spec_index:
             entity_id = self._spec_index[specification]

@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "fractal-repositories"
-version = "1.5.0"
+version = "1.5.1"
 description = "Fractal Repositories is an implementation of the repository pattern of Domain Driven Design (DDD) for building SOLID logic for your Python applications."
 readme = "README.md"
 authors = [

@@ -198,6 +198,38 @@ def test_remove_one_only_invalidates_removed_entity(repo, inner, mocker):
     assert spy.call_count == 1
 
 
+def test_invalidate_evicts_entry_from_cache(repo, inner, mocker):
+    repo.add(Item("1", name="Alice"))
+    spec = Specification.parse(id="1")
+    repo.find_one(spec)  # populate cache
+
+    spy = mocker.spy(inner, "find_one")
+    repo.invalidate("1")
+    repo.find_one(spec)  # cache miss — must hit inner
+
+    assert spy.call_count == 1
+
+
+def test_invalidate_does_not_affect_other_cache_entries(repo, inner, mocker):
+    repo.add(Item("1", name="Alice"))
+    repo.add(Item("2", name="Bob"))
+    spec1 = Specification.parse(id="1")
+    spec2 = Specification.parse(id="2")
+    repo.find_one(spec1)  # populate cache for id=1
+    repo.find_one(spec2)  # populate cache for id=2
+
+    spy = mocker.spy(inner, "find_one")
+    repo.invalidate("1")
+    repo.find_one(spec2)  # id=2 still cached — no inner call
+
+    assert spy.call_count == 0
+
+
+def test_invalidate_unknown_id_is_a_noop(repo):
+    repo.add(Item("1", name="Alice"))
+    repo.invalidate("nonexistent")  # must not raise
+
+
 def test_cache_independent_per_instance():
     inner_a = make_inner()
     inner_b = make_inner()
