@@ -544,3 +544,34 @@ session = Session()
 
 repo = SqlAlchemyUserRepository(session=session, model=YourSqlAlchemyModel)
 ```
+
+### File (JSON Lines)
+
+`FileRepositoryMixin` persists each entity as one JSON object per line in
+`<root_dir>/db/<RepositoryName>.jsonl`. It is built to survive corrupt data and
+torn writes:
+
+- **Resilient reads** — the reader skips empty lines, null bytes, and JSON that
+  does not deserialize into an entity (logging a warning for each) instead of
+  crashing. Genuine deserialization bugs propagate loudly rather than silently
+  dropping rows.
+- **Crash-safe appends** — `add` appends a single line, so a process killed
+  mid-write produces at most one malformed trailing line, which the reader
+  skips.
+- **Atomic rewrites** — `update` and `remove_one` rewrite the file via a temp
+  file plus `os.replace`, so a crash leaves either the old complete file or the
+  new one, never a half-rewritten (truncated) table.
+
+This is designed for a **single writer process** — there is no file locking, so
+concurrent writers can clobber each other on the rewrite path.
+
+```python
+from fractal_repositories.mixins.file_repository_mixin import FileRepositoryMixin
+
+
+class FileUserRepository(UserRepository, FileRepositoryMixin[User]):
+    pass
+
+
+repo = FileUserRepository(root_dir="/var/lib/myapp")
+```

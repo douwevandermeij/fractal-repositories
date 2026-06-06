@@ -251,6 +251,14 @@ def mocker_os_remove_error(mocker):
 
 @pytest.fixture
 def mocker_file_open_data(mocker, mocker_os_path_exists):
+    mocker.patch("os.makedirs", lambda *a, **kw: None)
+    # Keep FileRepositoryMixin._atomic_write off the real filesystem.
+    mocker.patch("tempfile.mkstemp", lambda *a, **kw: (0, "atomic.tmp"))
+    mocker.patch("os.fdopen", mocker.mock_open())
+    mocker.patch("os.fsync", lambda *a, **kw: None)
+    mocker.patch("os.replace", lambda *a, **kw: None)
+    mocker.patch("os.unlink", lambda *a, **kw: None)
+
     def wrapper(value):
         data = (
             value

@@ -52,6 +52,26 @@ def test_remove_one(file_repository, an_object, mocker_file_open_data):
     assert len(file_repository.entities) == 0
 
 
+def test_remove_one_rewrites_atomically(
+    file_repository, an_object, mocker_file_open_data, mocker
+):
+    # The rewrite path must never truncate the live file: it writes a temp file
+    # and atomically renames it over the original.
+    file_repository.add(an_object)
+    mocker_file_open_data(file_repository.entities.values())
+
+    replace = mocker.patch("os.replace")
+
+    from fractal_specifications.generic.specification import Specification
+
+    file_repository.remove_one(Specification.parse(id=an_object.id))
+
+    replace.assert_called_once()
+    tmp, dest = replace.call_args.args
+    assert dest == file_repository._filename
+    assert tmp != dest
+
+
 def test_find_one(file_repository, an_object, mocker_file_open_data):
     file_repository.add(an_object)
     mocker_file_open_data(file_repository.entities.values())
@@ -115,3 +135,20 @@ def test_find_path_doesnt_exist(file_repository, mocker_os_path_exists_error):
     # with pytest.raises(RepositoryException):
     #     next(file_repository.find())
     assert list(file_repository.find()) == []
+
+
+def test_find_skips_corrupt_lines(file_repository, an_object, mocker_file_open_data):
+    import json
+
+    valid = json.dumps(an_object.asdict())
+    # Blank lines, null bytes, malformed JSON, and JSON that is valid but does
+    # not deserialize into an entity (a bare number is not a mapping) must all
+    # be skipped, not crash.
+    mocker_file_open_data(
+        "\n".join(["", valid, "\x00\x00", "{not valid json", "{}garbage", "42"])
+    )
+
+    found = list(file_repository.find())
+
+    assert len(found) == 1
+    assert found[0].id == an_object.id
