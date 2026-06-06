@@ -575,3 +575,59 @@ class FileUserRepository(UserRepository, FileRepositoryMixin[User]):
 
 repo = FileUserRepository(root_dir="/var/lib/myapp")
 ```
+
+### SQLite (self-contained, no SQLAlchemy)
+
+`SqliteRepositoryMixin` is a drop-in replacement for `FileRepositoryMixin` that
+stores the data in a SQLite file at `<root_dir>/db/<RepositoryName>.sqlite`
+instead of a JSON Lines file. It uses only the standard-library `sqlite3`
+module — **no SQLAlchemy and no third-party dependencies**.
+
+It is fully transparent: swap the base class and change nothing else. The
+constructor signature (`root_dir=...`) and all query results are identical to
+the file mixin.
+
+- **No schema to manage** — each entity is stored as a JSON document in a single
+  generic table whose shape never changes:
+  `CREATE TABLE "<RepositoryName>" (id TEXT PRIMARY KEY, data TEXT NOT NULL)`.
+  All entity structure lives inside the `data` column, so there is nothing to
+  migrate when the entity changes.
+- **Auto-adapting to entity changes** — old rows upgrade transparently on read.
+  Removed/renamed fields in stored rows are ignored (`Entity.from_dict` keeps
+  only known fields). A row that can no longer be built into the current entity
+  (for example after a new *required* field with no default is added) is skipped
+  with a warning rather than crashing the read — give new fields a default and
+  old rows keep working.
+- **SQLite is the sole source of truth** — every read hits the database; nothing
+  is cached in memory between calls. The id-keyed paths (`get` / `find_one` /
+  `delete` by id) use the indexed primary key, and `count()` with no
+  specification is answered by `SELECT COUNT(*)`.
+- **Specifications are pushed down into SQL** — `SqliteSpecificationBuilder`
+  translates a specification into a `WHERE` clause over the JSON `data` column
+  (`json_extract(data, '$.field') = ?`), so non-matching rows are filtered in
+  SQLite's C layer and never deserialized. Pushdown is applied only when it is
+  *exactly* equivalent to evaluating the specification in Python — i.e. for
+  JSON-native scalar values (`str` / `int` / `float` / `bool` / `None`).
+  Specifications whose value is a type that `asdict` stores as a string
+  (`Decimal`, `date`, `datetime`, `UUID`, `Enum`) or that use operators SQLite
+  cannot faithfully express (`Contains`, regex, `Not`) fall back to Python
+  evaluation. **Pushdown only ever changes performance, never the result** — the
+  output is always identical to the other repositories. (One deliberate
+  refinement: a range comparison against a `null` field excludes that row in SQL,
+  where the in-memory path would raise `TypeError`.) Ordering and pagination are
+  applied in Python over the matched rows, because `Decimal` (a fixed-point
+  string) and other serialized types do not sort naturally in SQL.
+- **Crash-safe and concurrent** — SQLite provides ACID atomicity, crash-safety,
+  and concurrent-writer locking, so unlike the file mixin there is no
+  single-writer caveat and no torn-write handling to worry about.
+
+```python
+from fractal_repositories.mixins.sqlite_repository_mixin import SqliteRepositoryMixin
+
+
+class SqliteUserRepository(UserRepository, SqliteRepositoryMixin[User]):
+    pass
+
+
+repo = SqliteUserRepository(root_dir="/var/lib/myapp")
+```

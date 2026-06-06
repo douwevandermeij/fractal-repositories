@@ -4,7 +4,7 @@ build-backend = "flit_core.buildapi"
 
 [project]
 name = "fractal-repositories"
-version = "1.6.0"
+version = "1.7.0"
 description = "Fractal Repositories is an implementation of the repository pattern of Domain Driven Design (DDD) for building SOLID logic for your Python applications."
 readme = "README.md"
 authors = [
@@ -28,7 +28,7 @@ classifiers = [
 keywords = ["database", "query", "projection", "aggregation", "sql", "mongodb", "firestore", "elasticsearch"]
 
 dependencies = [
-    "fractal-specifications",
+    "fractal-specifications>=3.5.0",
 ]
 
 [project.optional-dependencies]
@@ -71,6 +71,11 @@ Homepage = "https://github.com/douwevandermeij/fractal-repositories"
 Documentation = "https://github.com/douwevandermeij/fractal-repositories#readme"
 Repository = "https://github.com/douwevandermeij/fractal-repositories"
 Issues = "https://github.com/douwevandermeij/fractal-repositories/issues"
+
+[tool.uv.sources]
+# Develop against the sibling checkout so the contrib.sqlite builder (added in
+# fractal-specifications 3.5.0) resolves locally before it is published.
+fractal-specifications = { path = "../fractal-specifications", editable = true }
 
 
 [tool.pytest.ini_options]

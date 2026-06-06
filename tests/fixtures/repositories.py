@@ -283,6 +283,18 @@ def file_repository(mocker_file_open_data):
 
 
 @pytest.fixture
+def sqlite_repository(tmp_path):
+    from fractal_repositories.mixins.sqlite_repository_mixin import (
+        SqliteRepositoryMixin,
+    )
+
+    class SqliteRepository(SqliteRepositoryMixin[AnObject]):
+        entity = AnObject
+
+    return SqliteRepository(root_dir=str(tmp_path))
+
+
+@pytest.fixture
 def inmemory_file_repository():
     from fractal_repositories.mixins.inmemory_repository_mixin import (
         InMemoryFileRepositoryMixin,
