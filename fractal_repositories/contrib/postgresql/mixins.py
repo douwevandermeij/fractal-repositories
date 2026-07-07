@@ -120,6 +120,12 @@ class PostgresRepositoryMixin(Repository[EntityType]):
                     direction = "DESC" if order_by.startswith("-") else "ASC"
                     column = order_by[1:] if order_by.startswith("-") else order_by
                     query += f" ORDER BY {column} {direction}"
+                    if column != "id":
+                        # Tiebreaker: without a deterministic secondary key,
+                        # ties on the sort column have no guaranteed order
+                        # across separate LIMIT/OFFSET queries, so pagination
+                        # can duplicate or drop rows between pages.
+                        query += ", id ASC"
 
                 if limit > 0:
                     query += f" LIMIT {limit}"

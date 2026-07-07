@@ -4,6 +4,7 @@ import dataclasses
 import logging
 from abc import ABC, abstractmethod
 from typing import (
+    Any,
     Dict,
     Generator,
     Generic,
@@ -38,6 +39,8 @@ class SqlAlchemyException(Exception):
 
 
 class SqlAlchemyDao(ABC):
+    id: Any
+
     @staticmethod
     @abstractmethod
     def mapper(
@@ -324,12 +327,21 @@ class SqlAlchemyRepositoryMixin(
 
         if order_by:
             if order_by.startswith("-"):
-                _order_by = getattr(entity_dao_class or self.entity_dao, order_by[1:])
+                field_name = order_by[1:]
+                _order_by = getattr(entity_dao_class or self.entity_dao, field_name)
                 desc = True
             else:
-                _order_by = getattr(entity_dao_class or self.entity_dao, order_by)
+                field_name = order_by
+                _order_by = getattr(entity_dao_class or self.entity_dao, field_name)
                 desc = False
-            ret = ret.order_by(_order_by.desc() if desc else _order_by)
+            order_clauses = [_order_by.desc() if desc else _order_by]
+            if field_name != "id":
+                # Tiebreaker: without a deterministic secondary key, ties on
+                # the sort column have no guaranteed order across separate
+                # OFFSET/LIMIT queries, so pagination can duplicate or drop
+                # rows between pages.
+                order_clauses.append((entity_dao_class or self.entity_dao).id)
+            ret = ret.order_by(*order_clauses)
 
         if limit:
             ret = ret.offset(offset)

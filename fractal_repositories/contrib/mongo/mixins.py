@@ -108,12 +108,19 @@ class MongoRepositoryMixin(Repository[EntityType]):
         )
 
         if order_by:
-            collection = collection.sort({order_by: direction})
+            sort_spec = [(order_by, direction)]
+            if order_by != "id":
+                # Tiebreaker: without a deterministic secondary key, MongoDB
+                # doesn't guarantee stable ordering among documents that tie
+                # on order_by, so skip/limit pagination across separate
+                # queries can duplicate or drop results between pages.
+                sort_spec.append(("id", 1))
+            collection = collection.sort(sort_spec)
 
         if limit:
             collection = collection.skip(offset).limit(limit)
 
-        for obj in collection.sort(order_by, direction):
+        for obj in collection:
             yield self._obj_to_domain(obj)
 
     def count(self, specification: Optional[Specification] = None) -> int:

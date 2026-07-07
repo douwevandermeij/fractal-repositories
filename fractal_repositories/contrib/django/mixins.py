@@ -79,7 +79,14 @@ class DjangoModelRepositoryMixin(Repository[EntityType]):
 
         order_by = order_by or self.order_by
         if order_by:
-            queryset = queryset.order_by(order_by)
+            order_fields = [order_by]
+            if order_by.lstrip("-") != "id":
+                # Tiebreaker: without a deterministic secondary key, ties on
+                # the sort field have no guaranteed order across separate
+                # sliced querysets, so pagination can duplicate or drop rows
+                # between pages.
+                order_fields.append("id")
+            queryset = queryset.order_by(*order_fields)
 
         if limit:
             queryset = queryset[offset : offset + limit]

@@ -152,6 +152,22 @@ def test_find_order_by_offset_limit_with_or_spec(
     assert list(sqlalchemy_test_repository.find(spec, offset=2, limit=1)) == []
 
 
+def test_find_order_by_with_ties_breaks_ties_by_id(
+    sqlalchemy_test_repository, sqlalchemy_test_model
+):
+    # All objects tie on `name`. Insert out of id order: without a
+    # deterministic secondary sort key, ties fall back to an unspecified
+    # order rather than a stable, predictable one, which is not guaranteed
+    # to stay consistent across separate offset/limit queries (causing items
+    # to repeat or vanish across pages).
+    for i in ["3", "1", "4", "0", "2"]:
+        obj = sqlalchemy_test_model(i, "same")
+        sqlalchemy_test_repository.add(obj)
+
+    result = list(sqlalchemy_test_repository.find(order_by="name"))
+    assert [obj.id for obj in result] == ["0", "1", "2", "3", "4"]
+
+
 def test_find_with_spec(sqlalchemy_test_repository, sqlalchemy_test_model):
     from fractal_specifications.generic.operators import EqualsSpecification
 

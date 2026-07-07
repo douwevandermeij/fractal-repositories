@@ -75,6 +75,24 @@ def test_find_offset_limit(mongo_test_repository, mongo_test_model):
     assert list(mongo_test_repository.find(offset=1, limit=1)) == [obj2]
 
 
+def test_find_order_by_with_ties_breaks_ties_by_id(
+    mongo_test_repository, mongo_test_model
+):
+    # All objects tie on `name`. Insert out of id order: without a
+    # deterministic secondary sort key, ties fall back to insertion/storage
+    # order rather than a stable, predictable order, which in real MongoDB
+    # is not guaranteed to stay consistent across separate skip/limit
+    # queries (causing items to repeat or vanish across pages).
+    for i in [3, 1, 4, 0, 2]:
+        obj = get_obj(mongo_test_model)
+        obj.id = str(i)
+        obj.name = "same"
+        mongo_test_repository.add(obj)
+
+    result = list(mongo_test_repository.find(order_by="name"))
+    assert [obj.id for obj in result] == ["0", "1", "2", "3", "4"]
+
+
 def test_find_filter(mongo_test_repository, mongo_test_model):
     obj1 = get_obj(mongo_test_model)
     obj2 = get_obj(mongo_test_model)

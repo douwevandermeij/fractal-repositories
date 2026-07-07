@@ -206,6 +206,49 @@ def test_find_with_order_by(postgres_test_repository, postgres_test_model):
         assert "DESC" in call_args
 
 
+def test_find_with_order_by_adds_id_tiebreaker(
+    postgres_test_repository, postgres_test_model
+):
+    obj1 = get_obj(postgres_test_model)
+
+    with patch("psycopg2.connect") as mock_connect:
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.__iter__ = MagicMock(return_value=iter([obj1.asdict()]))
+        mock_connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_connect.return_value.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        list(postgres_test_repository.find(order_by="name"))
+
+        # Without a deterministic secondary key, ties on the sort column
+        # have no guaranteed order across separate LIMIT/OFFSET queries, so
+        # pagination can duplicate or drop rows between pages.
+        call_args = mock_cursor.execute.call_args[0][0]
+        assert "ORDER BY name ASC, id ASC" in call_args
+
+
+def test_find_with_order_by_id_has_no_duplicate_tiebreaker(
+    postgres_test_repository, postgres_test_model
+):
+    obj1 = get_obj(postgres_test_model)
+
+    with patch("psycopg2.connect") as mock_connect:
+        mock_conn = MagicMock()
+        mock_cursor = MagicMock()
+        mock_cursor.__iter__ = MagicMock(return_value=iter([obj1.asdict()]))
+        mock_connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
+        mock_connect.return_value.__exit__ = MagicMock(return_value=False)
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        list(postgres_test_repository.find(order_by="id"))
+
+        call_args = mock_cursor.execute.call_args[0][0]
+        assert call_args.count("id") == 1
+
+
 def test_find_with_limit_offset(postgres_test_repository, postgres_test_model):
     obj1 = get_obj(postgres_test_model)
 

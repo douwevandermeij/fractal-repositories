@@ -71,6 +71,24 @@ def test_find_offset_limit(duckdb_test_repository, duckdb_test_model):
     assert list(duckdb_test_repository.find(offset=1, limit=1)) == [obj2]
 
 
+def test_find_order_by_with_ties_breaks_ties_by_id(
+    duckdb_test_repository, duckdb_test_model
+):
+    # All objects tie on `name`. Insert out of id order: without a
+    # deterministic secondary sort key, ties fall back to an unspecified
+    # order rather than a stable, predictable one, which is not guaranteed
+    # to stay consistent across separate LIMIT/OFFSET queries (causing items
+    # to repeat or vanish across pages).
+    for i in [3, 1, 4, 0, 2]:
+        obj = get_obj(duckdb_test_model)
+        obj.id = str(i)
+        obj.name = "same"
+        duckdb_test_repository.add(obj)
+
+    result = list(duckdb_test_repository.find(order_by="name"))
+    assert [obj.id for obj in result] == ["0", "1", "2", "3", "4"]
+
+
 def test_find_filter(duckdb_test_repository, duckdb_test_model):
     obj1 = get_obj(duckdb_test_model)
     obj2 = get_obj(duckdb_test_model)
