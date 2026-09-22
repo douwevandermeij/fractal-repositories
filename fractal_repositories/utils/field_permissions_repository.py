@@ -306,6 +306,28 @@ class FieldPermissionsRepository(Repository[EntityType]):
                     self._validate_write_permissions(entity, perms, roles)
         return self._inner.update(entity, upsert=upsert)
 
+    @property
+    def supports_compare_and_swap(self) -> bool:  # type: ignore[override]
+        return self._inner.supports_compare_and_swap
+
+    def compare_and_swap(self, entity, *, expected) -> bool:
+        """
+        Swap an entity only while the stored row still matches ``expected``.
+
+        No ``roles`` parameter, deliberately: a compare-and-swap resolves a race
+        between two writers over a row one of them just read, which is internal
+        machinery, not a caller-submitted write. Field permissions are enforced
+        where a caller's values enter, on :meth:`add` and :meth:`update`.
+
+        Args:
+            entity: The entity to store.
+            expected: What must still hold for the stored row.
+
+        Returns:
+            True when the swap happened, False when the row had already moved on.
+        """
+        return self._inner.compare_and_swap(entity, expected=expected)
+
     def remove_one(self, specification):
         """
         Remove a single entity matching the specification. Delegates directly to the inner repository.

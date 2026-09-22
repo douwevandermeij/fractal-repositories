@@ -470,3 +470,36 @@ def test_preserve_add_no_default_field_reset_to_zero_value():
     repo = FieldPermissionsRepository(inner, on_write_conflict=OnWriteConflict.PRESERVE)
     repo.add(NoDefaultSecureObject("1", secret="hacked"), roles=["user"])
     assert repo.get("1").secret == ""
+
+
+# ---------------------------------------------------------------------------
+# compare_and_swap
+# ---------------------------------------------------------------------------
+
+
+def test_supports_compare_and_swap_follows_the_inner_repository(repo):
+    assert repo.supports_compare_and_swap is True
+
+
+def test_compare_and_swap_delegates(repo):
+    repo.add(SecureObject("1", name="first", secret="s"))
+
+    assert repo.compare_and_swap(
+        SecureObject("1", name="second", secret="s"),
+        expected=Specification.parse(name="first"),
+    )
+    assert repo.find_one(Specification.parse(id="1")).name == "second"
+
+
+def test_compare_and_swap_reports_a_lost_race(repo):
+    repo.add(SecureObject("1", name="first", secret="s"))
+    repo.compare_and_swap(
+        SecureObject("1", name="winner", secret="s"),
+        expected=Specification.parse(name="first"),
+    )
+
+    assert not repo.compare_and_swap(
+        SecureObject("1", name="loser", secret="s"),
+        expected=Specification.parse(name="first"),
+    )
+    assert repo.find_one(Specification.parse(id="1")).name == "winner"

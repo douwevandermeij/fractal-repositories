@@ -57,6 +57,21 @@ class MemoizedRepository(Repository[EntityType]):
         self._cache[entity.id] = result  # update in place; spec_index stays valid
         return result
 
+    @property
+    def supports_compare_and_swap(self) -> bool:  # type: ignore[override]
+        return self._inner.supports_compare_and_swap
+
+    def compare_and_swap(self, entity: EntityType, *, expected) -> bool:
+        swapped = self._inner.compare_and_swap(entity, expected=expected)
+        if swapped:
+            self._cache[entity.id] = entity
+        else:
+            # We lost: whatever is cached describes a row someone else has since
+            # rewritten. Evicting sends the caller's re-read to the inner
+            # repository, which is the only place the truth now lives.
+            self.invalidate(entity.id)
+        return swapped
+
     def invalidate(self, entity_id: str) -> None:
         """Remove a single entry from the in-process cache by entity ID.
 

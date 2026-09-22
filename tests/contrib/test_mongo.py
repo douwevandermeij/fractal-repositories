@@ -170,3 +170,50 @@ def test_remove_one(mongo_test_repository, mongo_test_model):
     mongo_test_repository.remove_one(Specification.parse(id=obj.id))
 
     assert len(list(mongo_test_repository.find())) == 0
+
+
+def test_supports_compare_and_swap(mongo_test_repository):
+    assert mongo_test_repository.supports_compare_and_swap is True
+
+
+def test_compare_and_swap(mongo_test_repository, mongo_test_model):
+    obj = get_obj(mongo_test_model)
+    mongo_test_repository.add(obj)
+
+    obj.name = "swapped"
+    swapped = mongo_test_repository.compare_and_swap(
+        obj, expected=Specification.parse(name="name")
+    )
+
+    assert swapped is True
+    assert list(mongo_test_repository.find())[0].name == "swapped"
+
+
+def test_compare_and_swap_refuses_a_row_that_moved_on(
+    mongo_test_repository, mongo_test_model
+):
+    obj = get_obj(mongo_test_model)
+    mongo_test_repository.add(obj)
+    winner = mongo_test_model(id=obj.id, name="winner", description=obj.description)
+    mongo_test_repository.compare_and_swap(
+        winner, expected=Specification.parse(name="name")
+    )
+
+    loser = mongo_test_model(id=obj.id, name="loser", description=obj.description)
+    swapped = mongo_test_repository.compare_and_swap(
+        loser, expected=Specification.parse(name="name")
+    )
+
+    assert swapped is False
+    assert list(mongo_test_repository.find())[0].name == "winner"
+
+
+def test_compare_and_swap_refuses_a_row_that_is_not_there(
+    mongo_test_repository, mongo_test_model
+):
+    assert (
+        mongo_test_repository.compare_and_swap(
+            get_obj(mongo_test_model), expected=Specification.parse(name="name")
+        )
+        is False
+    )
