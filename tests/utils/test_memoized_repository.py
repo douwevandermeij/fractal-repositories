@@ -245,3 +245,39 @@ def test_cache_independent_per_instance():
     # Mutating one repo's cache does not affect the other
     repo_a.add(Item("2", name="extra"))
     assert repo_b.count() == 1
+
+
+# ---------------------------------------------------------------------------
+# compare_and_swap
+# ---------------------------------------------------------------------------
+
+
+def test_supports_compare_and_swap_follows_the_inner_repository(repo):
+    assert repo.supports_compare_and_swap is True
+
+
+def test_compare_and_swap_caches_the_winning_entity(repo, inner):
+    repo.add(Item("1", name="first"))
+    repo.find_one(Specification.parse(id="1"))  # warm the cache
+
+    assert repo.compare_and_swap(
+        Item("1", name="second"), expected=Specification.parse(name="first")
+    )
+
+    assert repo.find_one(Specification.parse(id="1")).name == "second"
+    assert inner.find_one(Specification.parse(id="1")).name == "second"
+
+
+def test_compare_and_swap_evicts_the_cache_when_it_loses(repo, inner):
+    repo.add(Item("1", name="first"))
+    repo.find_one(Specification.parse(id="1"))  # warm the cache
+    # Someone else rewrites the row behind this wrapper's back.
+    inner.update(Item("1", name="winner"))
+
+    assert not repo.compare_and_swap(
+        Item("1", name="loser"), expected=Specification.parse(name="first")
+    )
+
+    # A stale cache here is how a lost race turns into a caller acting on a row
+    # that no longer exists in that shape.
+    assert repo.find_one(Specification.parse(id="1")).name == "winner"

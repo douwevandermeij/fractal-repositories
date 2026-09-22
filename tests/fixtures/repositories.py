@@ -283,6 +283,27 @@ def file_repository(mocker_file_open_data):
 
 
 @pytest.fixture
+def file_repository_on_disk(tmp_path):
+    """A file repository writing to a real directory.
+
+    The mocked `file_repository` above reads back a fixed string, so a write
+    never shows up in a subsequent read -- fine for the tests that only assert
+    what was written, useless for one that has to observe a row changing under
+    it.
+    """
+    from fractal_repositories.mixins.file_repository_mixin import FileRepositoryMixin
+
+    class OnDiskFileRepository(FileRepositoryMixin[AnObject]):
+        entity = AnObject
+
+    repository = OnDiskFileRepository(root_dir=str(tmp_path))
+    # `add` appends to the file but does not create the db/ directory -- only a
+    # read does. Prime it, as any real use does before its first write.
+    list(repository.find())
+    return repository
+
+
+@pytest.fixture
 def sqlite_repository(tmp_path):
     from fractal_repositories.mixins.sqlite_repository_mixin import (
         SqliteRepositoryMixin,

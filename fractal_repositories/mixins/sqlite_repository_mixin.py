@@ -72,6 +72,10 @@ class SqliteRepositoryMixin(RootDirMixin, Repository[EntityType]):
     here.
     """
 
+    # SQLite serializes writers through its own file locks, across processes as
+    # well as threads, so the check and the write below really are one step.
+    supports_compare_and_swap = True
+
     # Deserialization errors that mean "this row is stale relative to the current
     # entity schema" rather than "from_dict has a bug": JSON that is not a
     # mapping or an object missing required fields. Anything else propagates
@@ -234,6 +238,29 @@ class SqliteRepositoryMixin(RootDirMixin, Repository[EntityType]):
             # Indexed id lookup; raises ObjectNotFoundException if absent.
             self.find_one(Specification.parse(id=entity.id))
         return self.add(entity)
+
+    def compare_and_swap(self, entity: EntityType, *, expected: Specification) -> bool:
+        serialized = json.dumps(entity.asdict(), cls=EnhancedEncoder)
+        swapped = False
+        with self._connect() as conn:
+            # IMMEDIATE takes the write lock up front. The default (DEFERRED)
+            # would start this as a reader and only try to upgrade at the
+            # UPDATE, leaving another writer free to commit in between -- which
+            # is the exact window a compare-and-swap exists to close.
+            conn.execute("BEGIN IMMEDIATE")
+            row = conn.execute(
+                f'SELECT id, data FROM "{self._table}" WHERE id = ?',
+                (str(entity.id),),
+            ).fetchone()
+            if row is not None:
+                current = self._row_to_entity(row[0], row[1])
+                if current is not None and expected.is_satisfied_by(current):
+                    conn.execute(
+                        f'UPDATE "{self._table}" SET data = ? WHERE id = ?',
+                        (serialized, str(entity.id)),
+                    )
+                    swapped = True
+        return swapped
 
     def remove_one(self, specification: Specification):
         looked_up = self._id_lookup(specification)

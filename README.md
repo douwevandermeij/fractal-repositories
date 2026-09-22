@@ -83,6 +83,56 @@ class FirestoreDemoRepository(DemoRepository, FirestoreRepositoryMixin[DemoModel
     ...
 ```
 
+## Compare-and-swap
+
+`update()` is last-write-wins. Two callers that read the same row, change it and
+write it back both succeed, and the second silently erases the first. Usually
+that is tolerable. When the field being written *is* the thing being competed
+over -- rotating a refresh token, claiming a job, incrementing a counter -- it is
+not: the loser hands its holder a value the store no longer has, and nothing
+reports an error.
+
+`compare_and_swap()` makes the check and the write one indivisible step:
+
+```python
+session = repo.find_one(Specification.parse(id=session_id))
+seen = session.refresh_token_hash
+
+session.refresh_token_hash = new_hash
+if repo.compare_and_swap(
+    session, expected=Specification.parse(refresh_token_hash=seen)
+):
+    ...  # the row was still as we read it, and is now ours
+else:
+    ...  # someone else got there first -- re-read and decide, do not overwrite
+```
+
+`expected` describes what must still hold for the **stored** row, normally the
+value this caller read. The return value is the outcome, not an error: `False`
+means the row had already moved on (or is gone) and was left exactly as the
+other writer left it.
+
+### Backend support
+
+A backend that cannot make the check and the write indivisible raises
+`NotImplementedError` rather than quietly degrading to an `update()` -- a
+compare-and-swap that silently is not one is worse than none at all, because the
+caller stops watching for the race it believes it ruled out. Test
+`supports_compare_and_swap` when the same code runs against several backends.
+
+| Backend | Supported | How |
+|---|---|---|
+| In-memory | yes | a lock; one process by definition |
+| File (JSON Lines) | yes | a lock, within this backend's existing single-writer contract |
+| SQLite | yes | `BEGIN IMMEDIATE`, so the row cannot change between the check and the `UPDATE` |
+| MongoDB | yes | one `update_one` whose filter carries `expected` |
+| Firestore, PostgreSQL, SQLAlchemy, Django, DuckDB | not yet | raises `NotImplementedError` |
+
+The wrappers (`MemoizedRepository`, `CachedRepository`,
+`FieldPermissionsRepository`) pass it through and report the inner repository's
+support. A memoized wrapper evicts its cache entry when a swap loses, since what
+it holds describes a row someone else has since rewritten.
+
 ## Utilities
 
 ### FieldPermissionsRepository

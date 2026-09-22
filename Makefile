@@ -1,4 +1,4 @@
-.PHONY: help install deps dev-deps test lint format clean build publish dev-install
+.PHONY: help install deps dev-deps test lint format clean build publish dev-install sync-version
 
 # Default target
 help:
@@ -13,6 +13,7 @@ help:
 	@echo "  clean        - Remove build artifacts and cache files"
 	@echo "  build        - Build distribution packages"
 	@echo "  publish      - Publish to PyPI using flit"
+	@echo "  sync-version - Align __init__.py __version__ with pyproject.toml version"
 
 # Install package using uv
 install:
@@ -59,6 +60,13 @@ clean:
 	find . -type d -name __pycache__ -exec rm -rf {} +
 	find . -type f -name "*.pyc" -delete
 	find . -type f -name "*.pyo" -delete
+
+# Align fractal_repositories/__init__.py __version__ with pyproject.toml version
+sync-version:
+	@version=$$(grep -m1 '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/'); \
+	sed -i.bak -E "s/__version__ = \".*\"/__version__ = \"$$version\"/" fractal_repositories/__init__.py; \
+	rm -f fractal_repositories/__init__.py.bak; \
+	echo "Synced fractal_repositories/__init__.py to version $$version"
 
 # Build distribution packages
 build: clean

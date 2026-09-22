@@ -186,6 +186,14 @@ class WriteRepository(Generic[EntityType], ABC):
         repo.add(user)
     """
 
+    #: Whether :meth:`compare_and_swap` is honoured by this backend.
+    #:
+    #: A backend that cannot make the check and the write one indivisible step
+    #: leaves this False and raises, rather than quietly degrading to a plain
+    #: update. A compare-and-swap that silently is not one is worse than none:
+    #: the caller stops watching for the very race it believes it ruled out.
+    supports_compare_and_swap: bool = False
+
     @abstractmethod
     def add(self, entity: EntityType) -> EntityType:
         """
@@ -232,6 +240,54 @@ class WriteRepository(Generic[EntityType], ABC):
             repo.update(new_user, upsert=True)  # Creates if doesn't exist
         """
         raise NotImplementedError
+
+    def compare_and_swap(self, entity: EntityType, *, expected: Specification) -> bool:
+        """
+        Replace the stored entity, but only while it still matches ``expected``.
+
+        The check and the write are one indivisible step, which is the whole
+        point. Two callers that read the same row, change it and write it back
+        both succeed under :meth:`update`, and the second silently erases the
+        first. Rotating a credential is the case that hurts: the loser of that
+        race hands its holder a token the store no longer has, and nothing
+        anywhere reports an error.
+
+        Not abstract, so an existing implementation keeps working untouched --
+        it simply does not offer the guarantee, and says so through
+        :attr:`supports_compare_and_swap`.
+
+        Args:
+            entity: The entity to store, carrying the id of the row to replace
+            expected: What must still hold for the *stored* row -- normally the
+                value this caller read, e.g.
+                ``Specification.parse(refresh_token_hash=the_hash_i_read)``
+
+        Returns:
+            True when the swap happened. False when it did not, because the
+            stored row had already moved on or is gone.
+
+            False is an outcome, not an error: the row is left exactly as the
+            other writer left it, and the caller re-reads and decides rather
+            than retrying blindly into the lost update it just avoided.
+
+        Raises:
+            NotImplementedError: If the backend cannot make the check and the
+                write indivisible. Test :attr:`supports_compare_and_swap` first
+                when the same code runs against more than one backend.
+
+        Example:
+            session = repo.find_one(Specification.parse(id="1"))
+            seen = session.refresh_token_hash
+            session.refresh_token_hash = new_hash
+            if not repo.compare_and_swap(
+                session, expected=Specification.parse(refresh_token_hash=seen)
+            ):
+                ...  # someone else rotated first -- re-read, do not overwrite
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement compare_and_swap; "
+            "check supports_compare_and_swap before calling it."
+        )
 
     @abstractmethod
     def remove_one(self, specification: Specification) -> None:

@@ -1,3 +1,4 @@
+import threading
 import uuid
 from typing import Dict, Iterator, List, Optional
 
@@ -11,10 +12,15 @@ from fractal_repositories.core.repositories import (
 
 
 class InMemoryRepositoryMixin(Repository[EntityType]):
+    # One process by definition, so the lock below is all the indivisibility
+    # this backend needs.
+    supports_compare_and_swap = True
+
     def __init__(self, *args, **kwargs) -> None:
         super(InMemoryRepositoryMixin, self).__init__(*args, **kwargs)
 
         self.entities: Dict[str, EntityType] = {}
+        self._swap_lock = threading.Lock()
 
     def add(self, entity: EntityType) -> EntityType:
         self.entities[entity.id] = entity
@@ -24,6 +30,14 @@ class InMemoryRepositoryMixin(Repository[EntityType]):
         if entity.id in self.entities or upsert:
             return self.add(entity)
         raise self._object_not_found()
+
+    def compare_and_swap(self, entity: EntityType, *, expected: Specification) -> bool:
+        with self._swap_lock:
+            current = self.entities.get(entity.id)
+            if current is None or not expected.is_satisfied_by(current):
+                return False
+            self.entities[entity.id] = entity
+            return True
 
     def remove_one(self, specification: Specification):
         if obj := self.find_one(specification):

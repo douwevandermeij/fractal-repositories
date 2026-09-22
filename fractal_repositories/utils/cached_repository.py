@@ -24,6 +24,18 @@ class CachedRepository(Repository[EntityType]):
         self.cache_repository.update(entity, upsert=upsert)
         return entity
 
+    @property
+    def supports_compare_and_swap(self) -> bool:  # type: ignore[override]
+        # The main repository is the one holding the contested row; the cache
+        # only ever follows it.
+        return self.main_repository.supports_compare_and_swap
+
+    def compare_and_swap(self, entity: EntityType, *, expected: Specification) -> bool:
+        swapped = self.main_repository.compare_and_swap(entity, expected=expected)
+        if swapped:
+            self.cache_repository.update(entity, upsert=True)
+        return swapped
+
     def remove_one(self, specification: Specification):
         self.main_repository.remove_one(specification)
         self.cache_repository.remove_one(specification)

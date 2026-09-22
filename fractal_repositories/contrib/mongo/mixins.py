@@ -3,6 +3,7 @@ from typing import Iterator, Optional, Tuple
 from fractal_specifications.contrib.mongo.specifications import (
     MongoSpecificationBuilder,
 )
+from fractal_specifications.generic.operators import EqualsSpecification
 from fractal_specifications.generic.specification import Specification
 from pymongo import MongoClient
 from pymongo.database import Database
@@ -46,6 +47,10 @@ def setup_mongo_connection(
 
 
 class MongoRepositoryMixin(Repository[EntityType]):
+    # A single update_one is atomic at the document level on every deployment,
+    # standalone or replica set, so the filter-plus-write below is one step.
+    supports_compare_and_swap = True
+
     def __init__(
         self,
         collection: str = "",
@@ -80,6 +85,21 @@ class MongoRepositoryMixin(Repository[EntityType]):
         elif upsert:
             return self.add(entity)
         raise self._object_not_found()
+
+    def compare_and_swap(self, entity: EntityType, *, expected: Specification) -> bool:
+        # One update_one: the server matches the document and writes it under
+        # the same document-level lock, so nothing can slip between the two.
+        # `expected` rides along in the filter, which is what makes the match
+        # the comparison.
+        result = self.collection.update_one(
+            MongoSpecificationBuilder.build(
+                EqualsSpecification("id", entity.id) & expected
+            ),
+            {"$set": entity.asdict()},
+        )
+        # matched, not modified: a swap that writes back an identical document
+        # is still a swap this caller won, and modified_count would report 0.
+        return result.matched_count == 1
 
     def remove_one(self, specification: Specification):
         self.collection.delete_one(MongoSpecificationBuilder.build(specification))

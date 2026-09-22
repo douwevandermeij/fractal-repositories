@@ -109,6 +109,25 @@ class FileRepositoryMixin(RootDirMixin, InMemoryRepositoryMixin[EntityType]):
             return self.add(entity)
         raise self._object_not_found()
 
+    def compare_and_swap(self, entity: EntityType, *, expected: Specification) -> bool:
+        # Not inherited from the in-memory mixin: there `self.entities` is the
+        # store, here it is a write-through shadow of the file, so the check has
+        # to read the file like every other read does.
+        #
+        # The lock makes this indivisible between threads, which is as far as
+        # this backend's single-writer contract reaches either way -- two
+        # processes on the same file can still clobber each other, on this path
+        # exactly as on `update`.
+        with self._swap_lock:
+            try:
+                current = self.find_one(Specification.parse(id=entity.id))
+            except ObjectNotFoundException:
+                return False
+            if not expected.is_satisfied_by(current):
+                return False
+            self.update(entity)
+            return True
+
     def remove_one(self, specification: Specification):
         super().remove_one(specification)
         entities = list(self.find(NotSpecification(specification)))

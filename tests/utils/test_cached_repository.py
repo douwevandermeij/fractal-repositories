@@ -136,3 +136,41 @@ def test_cached_distributed_inmemory_read_repository(
         {"id": 1, "name": "a", "number": 1, "extra": ""},
         {"id": 2, "name": "b", "number": 2, "extra": ""},
     ]
+
+
+def test_supports_compare_and_swap_follows_the_main_repository(
+    cached_inmemory_c_repository,
+):
+    assert cached_inmemory_c_repository.supports_compare_and_swap is True
+
+
+def test_compare_and_swap_writes_through_to_the_cache(
+    inmemory_c_repository, another_inmemory_c_repository, cached_inmemory_c_repository
+):
+    from fractal_specifications.generic.specification import Specification
+
+    cached_inmemory_c_repository.add(C(1, "a", 1))
+
+    swapped = cached_inmemory_c_repository.compare_and_swap(
+        C(1, "b", 1), expected=Specification.parse(name="a")
+    )
+
+    assert swapped is True
+    assert inmemory_c_repository.entities[1].name == "b"
+    assert another_inmemory_c_repository.entities[1].name == "b"
+
+
+def test_compare_and_swap_leaves_the_cache_alone_when_it_loses(
+    inmemory_c_repository, another_inmemory_c_repository, cached_inmemory_c_repository
+):
+    from fractal_specifications.generic.specification import Specification
+
+    cached_inmemory_c_repository.add(C(1, "a", 1))
+
+    swapped = cached_inmemory_c_repository.compare_and_swap(
+        C(1, "b", 1), expected=Specification.parse(name="somethingelse")
+    )
+
+    assert swapped is False
+    assert inmemory_c_repository.entities[1].name == "a"
+    assert another_inmemory_c_repository.entities[1].name == "a"
