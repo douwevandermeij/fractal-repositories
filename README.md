@@ -522,6 +522,35 @@ repo = MongoUserRepository(
 )
 ```
 
+#### Native datetimes
+
+By default, datetimes are stored as the ISO strings `Entity.asdict()` produces. Set `native_datetimes` to store them as BSON dates instead: they sort and compare correctly across UTC offsets, and work with date indexes, TTL indexes and date aggregations.
+
+```python
+class MongoUserRepository(UserRepository, MongoRepositoryMixin[User]):
+    native_datetimes = True  # or pass native_datetimes=True to the constructor
+```
+
+- Datetimes are stored in UTC and truncated to the millisecond, the precision of a BSON date. Filters are truncated the same way, so an equality filter on a microsecond value still matches what was stored.
+- Reads return timezone-aware UTC datetimes, even from a client created without `tz_aware=True`.
+- `date` fields stay `YYYY-MM-DD` strings, which already sort correctly.
+
+**Migrating existing data.** A collection written without `native_datetimes` holds strings that datetime filters no longer see. With `auto_migrate` (on by default) the repository converts them the first time it is used: every datetime field of the entity, including fields of nested models, is found through its type hints and converted in batches. Completion is recorded in the `fractal_migrations` collection, so later starts only look that up.
+
+The migration is idempotent and safe to run from several processes at once: each write only applies while the field still holds the string it read. Strings that do not parse as a datetime, and datetimes inside lists, are left as they are and logged.
+
+To migrate from a deploy step instead, for instance for a collection large enough that its first scan should not delay a request, turn `auto_migrate` off and run it yourself:
+
+```python
+from fractal_repositories.contrib.mongo.migrations import migrate_datetimes
+
+repo = MongoUserRepository(..., native_datetimes=True, auto_migrate=False)
+result = migrate_datetimes(repo)                # MigrationResult(converted=..., unparseable=..., ...)
+migrate_datetimes(repo, reverse=True)           # back to strings, e.g. to downgrade
+```
+
+Anything that reads the raw documents outside this library (exports, BI tools, other services) sees dates instead of strings once a collection is migrated.
+
 ### Google Firestore
 
 ```python

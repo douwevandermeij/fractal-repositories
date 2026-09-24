@@ -1,4 +1,5 @@
-from typing import Iterator, Optional, Tuple
+from datetime import datetime, timezone
+from typing import Any, Iterator, Optional, Tuple
 
 from fractal_specifications.contrib.mongo.specifications import (
     MongoSpecificationBuilder,
@@ -10,7 +11,10 @@ from pymongo.database import Database
 from pymongo.server_api import ServerApi
 
 from fractal_repositories.core.repositories import EntityType, Repository
-from fractal_repositories.utils.stored_specification import to_stored_specification
+from fractal_repositories.utils.stored_specification import (
+    to_native_datetime,
+    to_stored_specification,
+)
 
 
 def setup_mongo_connection(
@@ -52,14 +56,34 @@ class MongoRepositoryMixin(Repository[EntityType]):
     # standalone or replica set, so the filter-plus-write below is one step.
     supports_compare_and_swap = True
 
+    #: Store datetimes as BSON dates rather than the ISO strings
+    #: ``Entity.asdict()`` produces. Dates sort and compare correctly across
+    #: offsets, and work with date indexes, TTL indexes and date aggregations.
+    #: A collection written without it holds strings that datetime filters can
+    #: no longer see, so it has to be migrated: see ``auto_migrate``.
+    native_datetimes: bool = False
+    #: With ``native_datetimes``, migrate this collection's string datetimes on
+    #: first use (see :func:`~fractal_repositories.contrib.mongo.migrations.migrate_datetimes`).
+    #: Runs once: completion is recorded, later starts only look that up. Turn
+    #: it off to migrate from a deploy step instead, e.g. for a collection large
+    #: enough that its first scan should not delay a request.
+    auto_migrate: bool = True
+
     def __init__(
         self,
         collection: str = "",
         collection_prefix: str = "",
         *args,
+        native_datetimes: Optional[bool] = None,
+        auto_migrate: Optional[bool] = None,
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
+        if native_datetimes is not None:
+            self.native_datetimes = native_datetimes
+        if auto_migrate is not None:
+            self.auto_migrate = auto_migrate
+        self._migration_checked = False
         if client := kwargs.get("client"):
             self.client = client
             self.db = client[kwargs.get("database", "")]
@@ -72,12 +96,14 @@ class MongoRepositoryMixin(Repository[EntityType]):
         self.collection = getattr(self.db, collection.lower().replace(" ", "-"))
 
     def add(self, entity: EntityType) -> EntityType:
-        self.collection.insert_one(entity.asdict())
+        self._ensure_migrated()
+        self.collection.insert_one(self._to_document(entity))
         return entity
 
     def update(self, entity: EntityType, *, upsert=False) -> EntityType:
+        self._ensure_migrated()
         if obj := self.collection.find_one({"id": entity.id}):
-            obj.update(entity.asdict())
+            obj.update(self._to_document(entity))
             self.collection.update_one(
                 {"id": entity.id},
                 {"$set": obj},
@@ -94,7 +120,7 @@ class MongoRepositoryMixin(Repository[EntityType]):
         # the comparison.
         result = self.collection.update_one(
             self._build(EqualsSpecification("id", entity.id) & expected),
-            {"$set": entity.asdict()},
+            {"$set": self._to_document(entity)},
         )
         # matched, not modified: a swap that writes back an identical document
         # is still a swap this caller won, and modified_count would report 0.
@@ -146,12 +172,57 @@ class MongoRepositoryMixin(Repository[EntityType]):
     def is_healthy(self) -> bool:
         return bool(self.client.server_info().get("ok", False))
 
-    @staticmethod
-    def _build(specification: Optional[Specification]):
+    def _build(self, specification: Optional[Specification]):
         # Documents hold entity.asdict(): datetimes, dates, decimals and the
         # like as strings. A filter has to carry them in that same shape, or
         # Mongo, which never compares across BSON types, matches nothing.
-        return MongoSpecificationBuilder.build(to_stored_specification(specification))
+        self._ensure_migrated()
+        return MongoSpecificationBuilder.build(
+            to_stored_specification(
+                specification, native_datetimes=self.native_datetimes
+            )
+        )
+
+    def _to_document(self, entity: EntityType) -> dict:
+        if not self.native_datetimes:
+            return entity.asdict()
+        return _native_datetimes(entity.asdict(skip_types=[datetime]))
+
+    def _ensure_migrated(self):
+        """Migrate this collection to native datetimes, once per process and
+        once per collection: a recorded migration costs one lookup."""
+        if self._migration_checked or not (self.native_datetimes and self.auto_migrate):
+            return
+        from fractal_repositories.contrib.mongo.migrations import (
+            is_migrated,
+            migrate_datetimes,
+        )
+
+        if not is_migrated(self):
+            migrate_datetimes(self)
+        self._migration_checked = True
 
     def _obj_to_domain(self, obj: dict) -> EntityType:
-        return self.entity.clean(**obj)
+        # BSON dates are UTC by definition, but pymongo hands them back naive
+        # unless the client was created with tz_aware=True.
+        return self.entity.clean(**_utc_datetimes(obj))
+
+
+def _native_datetimes(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _native_datetimes(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_native_datetimes(v) for v in value]
+    if isinstance(value, datetime):
+        return to_native_datetime(value)
+    return value
+
+
+def _utc_datetimes(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _utc_datetimes(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_utc_datetimes(v) for v in value]
+    if isinstance(value, datetime) and value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value
