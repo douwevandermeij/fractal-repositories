@@ -217,3 +217,42 @@ def test_compare_and_swap_refuses_a_row_that_is_not_there(
         )
         is False
     )
+
+
+def test_datetime_filters_match_stored_strings(mongo_test_model):
+    from dataclasses import dataclass
+    from datetime import datetime, timedelta, timezone
+
+    from fractal_repositories.contrib.mongo.mixins import MongoRepositoryMixin
+
+    @dataclass
+    class Timed(mongo_test_model):
+        created_on: datetime = None
+
+    class TimedRepository(MongoRepositoryMixin[Timed]):
+        entity = Timed
+
+    repository = TimedRepository(host="mongo-mock", database="", collection="timed")
+    start = datetime(2026, 9, 22, tzinfo=timezone.utc)
+    for hours in (-3, 2, 10, 26):
+        repository.add(Timed(id=str(hours), created_on=start + timedelta(hours=hours)))
+    window = Specification.parse(
+        created_on__gte=start, created_on__lt=start + timedelta(days=1)
+    )
+
+    assert sorted(t.id for t in repository.find(window)) == ["10", "2"]
+    assert repository.count(window) == 2
+    assert repository.find_one(Specification.parse(created_on__lt=start)).id == "-3"
+    assert [
+        t.id
+        for t in repository.find(
+            Specification.parse(created_on__lt=start + timedelta(days=1)),
+            limit=1,
+            order_by="-created_on",
+        )
+    ] == ["10"]
+
+    entity = Timed(id="2", name="swapped", created_on=start + timedelta(hours=2))
+    assert repository.compare_and_swap(
+        entity, expected=Specification.parse(created_on=entity.created_on)
+    )

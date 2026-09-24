@@ -9,6 +9,7 @@ from google.cloud.firestore_v1.base_collection import BaseCollectionReference
 from google.cloud.firestore_v1.base_query import BaseQuery
 
 from fractal_repositories.core.repositories import EntityType, Repository
+from fractal_repositories.utils.stored_specification import to_stored_specification
 
 
 class FirestoreClient(object):
@@ -93,6 +94,11 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
             yield i
 
     def find_one(self, specification: Specification) -> EntityType:
+        # Documents hold entity.asdict(): datetimes, dates, decimals and the
+        # like as strings. Both the query and the in-process re-check below
+        # have to compare against that shape; a datetime would match no string
+        # in Firestore and raise TypeError in is_satisfied_by.
+        specification = to_stored_specification(specification)
         _filter = FirestoreSpecificationBuilder.build(specification)
         collection: Union[BaseCollectionReference, BaseQuery] = self.collection
         if _filter:
@@ -121,7 +127,9 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
         limit: int = 0,
         order_by: str = "",
     ) -> Iterator[EntityType]:
-        _filter = FirestoreSpecificationBuilder.build(specification)
+        _filter = FirestoreSpecificationBuilder.build(
+            to_stored_specification(specification)
+        )
         direction = Query.ASCENDING
         order_by = order_by or self.order_by
         if order_by.startswith("-"):
@@ -149,7 +157,9 @@ class FirestoreRepositoryMixin(Repository[EntityType]):
             yield self.entity.from_dict(doc.to_dict())
 
     def count(self, specification: Optional[Specification] = None) -> int:
-        _filter = FirestoreSpecificationBuilder.build(specification)
+        _filter = FirestoreSpecificationBuilder.build(
+            to_stored_specification(specification)
+        )
         collection: Union[BaseCollectionReference, BaseQuery] = self.collection
         if _filter:
             if isinstance(_filter, list):

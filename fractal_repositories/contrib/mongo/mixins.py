@@ -10,6 +10,7 @@ from pymongo.database import Database
 from pymongo.server_api import ServerApi
 
 from fractal_repositories.core.repositories import EntityType, Repository
+from fractal_repositories.utils.stored_specification import to_stored_specification
 
 
 def setup_mongo_connection(
@@ -92,9 +93,7 @@ class MongoRepositoryMixin(Repository[EntityType]):
         # `expected` rides along in the filter, which is what makes the match
         # the comparison.
         result = self.collection.update_one(
-            MongoSpecificationBuilder.build(
-                EqualsSpecification("id", entity.id) & expected
-            ),
+            self._build(EqualsSpecification("id", entity.id) & expected),
             {"$set": entity.asdict()},
         )
         # matched, not modified: a swap that writes back an identical document
@@ -102,10 +101,10 @@ class MongoRepositoryMixin(Repository[EntityType]):
         return result.matched_count == 1
 
     def remove_one(self, specification: Specification):
-        self.collection.delete_one(MongoSpecificationBuilder.build(specification))
+        self.collection.delete_one(self._build(specification))
 
     def find_one(self, specification: Specification) -> EntityType:
-        for obj in self.collection.find(MongoSpecificationBuilder.build(specification)):
+        for obj in self.collection.find(self._build(specification)):
             return self._obj_to_domain(obj)
         raise self._object_not_found()
 
@@ -123,9 +122,7 @@ class MongoRepositoryMixin(Repository[EntityType]):
             order_by = order_by[1:]
             direction = -1
 
-        collection = self.collection.find(
-            MongoSpecificationBuilder.build(specification)
-        )
+        collection = self.collection.find(self._build(specification))
 
         if order_by:
             sort_spec = [(order_by, direction)]
@@ -144,12 +141,17 @@ class MongoRepositoryMixin(Repository[EntityType]):
             yield self._obj_to_domain(obj)
 
     def count(self, specification: Optional[Specification] = None) -> int:
-        return self.collection.count_documents(
-            MongoSpecificationBuilder.build(specification) or {}
-        )
+        return self.collection.count_documents(self._build(specification) or {})
 
     def is_healthy(self) -> bool:
         return bool(self.client.server_info().get("ok", False))
+
+    @staticmethod
+    def _build(specification: Optional[Specification]):
+        # Documents hold entity.asdict(): datetimes, dates, decimals and the
+        # like as strings. A filter has to carry them in that same shape, or
+        # Mongo, which never compares across BSON types, matches nothing.
+        return MongoSpecificationBuilder.build(to_stored_specification(specification))
 
     def _obj_to_domain(self, obj: dict) -> EntityType:
         return self.entity.clean(**obj)
