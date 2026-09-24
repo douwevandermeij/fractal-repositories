@@ -150,3 +150,29 @@ def test_remove_one(firestore_test_repository, firestore_test_model, now):
     firestore_test_repository.remove_one(Specification.parse(id=obj.id))
 
     assert len(list(firestore_test_repository.find())) == 0
+
+
+def test_datetime_filters_match_stored_strings(
+    firestore_test_repository, firestore_test_model
+):
+    from datetime import datetime, timedelta, timezone
+
+    start = datetime(2026, 9, 22, tzinfo=timezone.utc)
+    for hours in (-3, 2, 10, 26):
+        firestore_test_repository.add(
+            firestore_test_model(
+                id=str(hours), created_at=start + timedelta(hours=hours)
+            )
+        )
+    # One condition per query: mock-firestore's Query.where() takes no
+    # filter= keyword, so only the first where() of a chain can run here.
+    after = Specification.parse(created_at__gte=start + timedelta(hours=1))
+    before = Specification.parse(created_at__lt=start)
+
+    assert sorted(t.id for t in firestore_test_repository.find(after)) == [
+        "10",
+        "2",
+        "26",
+    ]
+    assert firestore_test_repository.count(after) == 3
+    assert firestore_test_repository.find_one(before).id == "-3"
