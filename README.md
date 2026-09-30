@@ -587,6 +587,17 @@ repo = PostgresUserRepository(
 )
 ```
 
+Connections come from a pool shared by every repository with the same connection settings in the process. They are opened on demand, kept for reuse, and always returned, also when a call raises. `find` reads its rows before yielding them, so an iterator that is not read to the end holds no connection. Optional settings:
+
+| Setting | Default | |
+|---|---|---|
+| `postgres_max_connections` | `5` | connections per process and setting; bounds what one process can take from the server's `max_connections` |
+| `postgres_min_connections` | `0` | connections opened up front |
+| `postgres_acquire_timeout` | `30` | seconds a call waits for a free connection before raising `PostgresPoolExhausted` |
+| `postgres_application_name` | `"fractal-repositories"` | shown in `pg_stat_activity` |
+
+`PostgresRepositoryMixin.close_all_pools()` closes them, for a shutdown hook.
+
 ### Django
 
 ```python

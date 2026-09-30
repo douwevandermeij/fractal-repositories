@@ -150,9 +150,7 @@ def test_find(postgres_test_repository, postgres_test_model):
     with patch("psycopg2.connect") as mock_connect:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.__iter__ = MagicMock(
-            return_value=iter([obj1.asdict(), obj2.asdict()])
-        )
+        mock_cursor.fetchall.return_value = [obj1.asdict(), obj2.asdict()]
         mock_connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_connect.return_value.__exit__ = MagicMock(return_value=False)
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
@@ -170,7 +168,7 @@ def test_find_with_specification(postgres_test_repository, postgres_test_model):
     with patch("psycopg2.connect") as mock_connect:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.__iter__ = MagicMock(return_value=iter([obj1.asdict()]))
+        mock_cursor.fetchall.return_value = [obj1.asdict()]
         mock_connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_connect.return_value.__exit__ = MagicMock(return_value=False)
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
@@ -189,9 +187,7 @@ def test_find_with_order_by(postgres_test_repository, postgres_test_model):
     with patch("psycopg2.connect") as mock_connect:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.__iter__ = MagicMock(
-            return_value=iter([obj2.asdict(), obj1.asdict()])
-        )
+        mock_cursor.fetchall.return_value = [obj2.asdict(), obj1.asdict()]
         mock_connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_connect.return_value.__exit__ = MagicMock(return_value=False)
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
@@ -214,7 +210,7 @@ def test_find_with_order_by_adds_id_tiebreaker(
     with patch("psycopg2.connect") as mock_connect:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.__iter__ = MagicMock(return_value=iter([obj1.asdict()]))
+        mock_cursor.fetchall.return_value = [obj1.asdict()]
         mock_connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_connect.return_value.__exit__ = MagicMock(return_value=False)
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
@@ -237,7 +233,7 @@ def test_find_with_order_by_id_has_no_duplicate_tiebreaker(
     with patch("psycopg2.connect") as mock_connect:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.__iter__ = MagicMock(return_value=iter([obj1.asdict()]))
+        mock_cursor.fetchall.return_value = [obj1.asdict()]
         mock_connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_connect.return_value.__exit__ = MagicMock(return_value=False)
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
@@ -255,7 +251,7 @@ def test_find_with_limit_offset(postgres_test_repository, postgres_test_model):
     with patch("psycopg2.connect") as mock_connect:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.__iter__ = MagicMock(return_value=iter([obj1.asdict()]))
+        mock_cursor.fetchall.return_value = [obj1.asdict()]
         mock_connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_connect.return_value.__exit__ = MagicMock(return_value=False)
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
@@ -276,9 +272,7 @@ def test_find_with_select(postgres_test_repository, postgres_test_model):
     with patch("psycopg2.connect") as mock_connect:
         mock_conn = MagicMock()
         mock_cursor = MagicMock()
-        mock_cursor.__iter__ = MagicMock(
-            return_value=iter([{"id": obj1.id, "name": obj1.name}])
-        )
+        mock_cursor.fetchall.return_value = [{"id": obj1.id, "name": obj1.name}]
         mock_connect.return_value.__enter__ = MagicMock(return_value=mock_conn)
         mock_connect.return_value.__exit__ = MagicMock(return_value=False)
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
