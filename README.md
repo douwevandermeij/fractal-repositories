@@ -344,6 +344,33 @@ product = repo.find_one(Specification.parse(id="sku-42"))
 
 ---
 
+### MigratingRepository
+
+`MigratingRepository` switches a repository to a new store without migrating it first. It reads from and writes to `primary`, the new store. An entity that `primary` does not have yet is looked up in `source`, the old store, copied to `primary` under the same id, and returned. `source` is only ever read.
+
+```python
+from fractal_repositories.utils.migrating_repository import MigratingRepository
+
+users = MigratingRepository(
+    primary=mongo_users,       # the new store
+    source=firestore_users,    # the old one, still written to by other apps
+    refresh_after=15 * 60,     # re-read a copied entity from the old store at most every 15 min
+)
+
+users.find_one(Specification.parse(email="alice@example.com"))  # copied on first use
+users.backfill()                                                # copy the rest, when it suits
+```
+
+- **`refresh_after`** keeps copies current while the old store is still where changes are made. An entity is re-read from `source` once that many seconds have passed since its last check in this process, and updated in `primary` when it changed. An entity `source` does not have is left alone, so what is created in `primary` is its own from the start. Leave it at `None` to copy each entity once.
+- **`same(a, b)`** decides whether a copy changed (default: equal `asdict()`). Pass one that ignores bookkeeping fields set when an entity is built, or every refresh writes.
+- **Only a narrowed, first-page `find`** falls back to `source`; an unfiltered one never copies the whole store as a side effect of listing it.
+- **`source` failing** is logged and never fails a read of something `primary` already has.
+- `count()` counts `primary`.
+
+Wrapped in `MemoizedRepository`, a refresh is only seen when the memoized entry is read again from the inner repository; turn memoization off for entities that change in the old store.
+
+---
+
 ### DistributedReadRepository
 
 `DistributedReadRepository` is a read-only data-federation layer. It takes a `main_repository` and a list of `DistributedRelation` objects. For every entity returned by the main repository, it queries each related repository and merges the results into the entity before yielding it. There are no `add`, `update`, or `remove_one` methods — this class is intentionally read-only.
