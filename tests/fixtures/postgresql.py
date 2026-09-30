@@ -32,6 +32,10 @@ def postgres_test_repository(postgres_test_model):
         TestRepository, PostgresRepositoryMixin[postgres_test_model]
     ): ...
 
+    # Each test patches psycopg2.connect itself; a pool left over from the
+    # previous test would hand out that test's mock connection instead.
+    PostgresRepositoryMixin.close_all_pools()
+
     # Mock the database connection
     with patch("psycopg2.connect") as mock_connect:
         mock_conn = MagicMock()
@@ -53,3 +57,5 @@ def postgres_test_repository(postgres_test_model):
         repo._mock_conn = mock_conn
         repo._mock_cursor = mock_cursor
         yield repo
+
+    PostgresRepositoryMixin.close_all_pools()
