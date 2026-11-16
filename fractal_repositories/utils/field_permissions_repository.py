@@ -1,3 +1,4 @@
+import copy
 import dataclasses
 import enum
 
@@ -19,6 +20,13 @@ class FieldPermissionsRepository(Repository[EntityType]):
 
     roles=None  → transparent (no masking/validation). For internal calls.
     roles=[...] → enforce permissions (even if empty). For API-originated calls.
+
+    A field a caller may not read is hidden in two ways: it comes back as None,
+    and a specification that mentions it is refused (find, find_one, count).
+    Blanking alone is not enough: filtering on the field and watching which
+    records come back reveals its value, and a prefix match recovers it a
+    character at a time. The check sees the whole specification, so a role's own
+    filter must not reference a field that role cannot read either.
     """
 
     def __init__(
@@ -121,6 +129,16 @@ class FieldPermissionsRepository(Repository[EntityType]):
                 setattr(entity, field, value)
         return entity
 
+    @staticmethod
+    def _unreadable_fields(field_permissions, roles):
+        """The fields with ``read_roles`` none of which ``roles`` holds."""
+        return {
+            field
+            for field, perms in field_permissions.items()
+            if perms.get("read_roles") is not None
+            and not any(role in perms["read_roles"] for role in roles)
+        }
+
     def _apply_read_mask(self, entity, field_permissions, roles):
         """
         Blank out fields the caller is not allowed to read.
@@ -128,20 +146,43 @@ class FieldPermissionsRepository(Repository[EntityType]):
         Fields without ``read_roles`` defined are always visible. Fields with
         ``read_roles`` are set to ``None`` when none of the caller's roles match.
 
+        Never mutates ``entity``: when there is something to hide it returns a
+        shallow copy. The entity may be the one an inner repository keeps --
+        MemoizedRepository hands out its cached object -- and masking that in
+        place blanked the field for every later reader, and an update built on it
+        wrote None over the stored value.
+
         Args:
-            entity: The entity to mask (mutated in-place).
+            entity: The entity to mask. Left untouched.
             field_permissions: Mapping of field name → permission config.
             roles: The caller's roles.
 
         Returns:
-            The masked entity.
+            ``entity`` itself when nothing is hidden, otherwise a masked copy.
         """
-        for field, perms in field_permissions.items():
-            read_roles = perms.get("read_roles")
-            if read_roles is not None and not any(role in read_roles for role in roles):
-                if hasattr(entity, field):
-                    setattr(entity, field, None)
-        return entity
+        hidden = [
+            field
+            for field in self._unreadable_fields(field_permissions, roles)
+            if hasattr(entity, field)
+        ]
+        if not hidden:
+            return entity
+        masked = copy.copy(entity)
+        for field in hidden:
+            setattr(masked, field, None)
+        return masked
+
+    def _check_specification(self, specification, roles):
+        """Refuse a specification that mentions a field ``roles`` cannot read."""
+        if roles is None or specification is None:
+            return
+        unreadable = self._unreadable_fields(self._field_permissions, roles)
+        if not unreadable:
+            return
+        for field in sorted(_specification_fields(specification) & unreadable):
+            raise self._forbidden_exception_class(
+                f"No permission to filter on field '{field}'"
+            )
 
     def find_one(self, specification, *, roles=None) -> EntityType:
         """
@@ -156,7 +197,10 @@ class FieldPermissionsRepository(Repository[EntityType]):
 
         Raises:
             ObjectNotFoundException: If no entity matches the specification.
+            forbidden_exception_class: If the specification mentions a field the
+                caller cannot read.
         """
+        self._check_specification(specification, roles)
         result = self._inner.find_one(specification)
         if roles is not None:
             return self._apply_read_mask(result, self._field_permissions, roles)
@@ -185,7 +229,12 @@ class FieldPermissionsRepository(Repository[EntityType]):
         Returns:
             An iterator or list of matching entities, with unreadable fields blanked
             out when roles are provided.
+
+        Raises:
+            forbidden_exception_class: If the specification mentions a field the
+                caller cannot read.
         """
+        self._check_specification(specification, roles)
         results = self._inner.find(
             specification, offset=offset, limit=limit, order_by=order_by
         )
@@ -195,16 +244,26 @@ class FieldPermissionsRepository(Repository[EntityType]):
             self._apply_read_mask(e, self._field_permissions, roles) for e in results
         ]
 
-    def count(self, specification=None):
+    def count(self, specification=None, *, roles=None):
         """
-        Count entities matching the specification. Delegates directly to the inner repository.
+        Count entities matching the specification.
+
+        A count answers the same question a filter does, so it gets the same
+        check: with ``roles``, a specification on a field the caller cannot read
+        is refused.
 
         Args:
             specification: Filter criteria, or None to count all entities.
+            roles: Caller's roles. Pass ``None`` to skip the check (internal use).
 
         Returns:
             The number of matching entities.
+
+        Raises:
+            forbidden_exception_class: If the specification mentions a field the
+                caller cannot read.
         """
+        self._check_specification(specification, roles)
         return self._inner.count(specification)
 
     def get(self, id) -> EntityType:
@@ -354,3 +413,30 @@ class FieldPermissionsRepository(Repository[EntityType]):
             True if the inner repository is healthy, False otherwise.
         """
         return self._inner.is_healthy()
+
+
+def _specification_fields(specification) -> set:
+    """Every entity field a specification reads, as top-level names.
+
+    Walks And/Or/Not trees down to the field-value leaves. A nested lookup
+    ("address.city", "address__city") counts as its top-level field, since
+    that is what a field permission names.
+    """
+    from fractal_specifications.generic.collections import CollectionSpecification
+    from fractal_specifications.generic.operators import (
+        FieldValueSpecification,
+        NotSpecification,
+    )
+
+    if isinstance(specification, CollectionSpecification):
+        fields = set()
+        for child in specification.specifications:
+            fields |= _specification_fields(child)
+        return fields
+    if isinstance(specification, NotSpecification):
+        return _specification_fields(specification.specification)
+    if isinstance(specification, FieldValueSpecification):
+        name = specification.field
+        separator = "__" if "__" in name else "."
+        return {name.split(separator)[0]}
+    return set()
