@@ -196,6 +196,22 @@ order = repo.find_one(Specification.parse(id="1"))
 # order.internal_notes == "confidential"
 ```
 
+The masked entity is a copy: the one the inner repository returned is never changed. That matters when the inner repository hands out an object it keeps, as `MemoizedRepository` does with its cache.
+
+#### No filtering on unreadable fields
+
+With `roles`, `find()`, `find_one()` and `count()` refuse a specification that mentions a field the caller cannot read, raising `forbidden_exception_class`. Blanking the value alone would not hide it: filtering on the field and watching which records come back reveals it, and a prefix match recovers it a character at a time.
+
+```python
+# Raises PermissionError — customer cannot read internal_notes
+repo.find(EqualsSpecification("internal_notes", "VIP customer"), roles=["customer"])
+
+# Fine — staff may read it; and internal calls (roles=None) are not checked
+repo.find(EqualsSpecification("internal_notes", "VIP customer"), roles=["staff"])
+```
+
+The check sees the whole specification, so a role's own filter, when an application ANDs one in, must not reference a field that role cannot read either. Free-text search over several fields should leave out the ones the caller cannot read rather than send them along.
+
 #### Write validation
 
 Pass `roles` to `add()` or `update()`. By default (`OnWriteConflict.RAISE`), a `PermissionError` is raised if the caller submits a non-default value for a field they are not allowed to write:
