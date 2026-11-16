@@ -1,6 +1,16 @@
+import copy
 from dataclasses import dataclass
 
 import pytest
+from fractal_specifications.generic.collections import (
+    AndSpecification,
+    OrSpecification,
+)
+from fractal_specifications.generic.operators import (
+    EqualsSpecification,
+    NotSpecification,
+    RegexStringMatchSpecification,
+)
 from fractal_specifications.generic.specification import Specification
 
 from fractal_repositories.core.entity import Entity
@@ -11,6 +21,7 @@ from fractal_repositories.utils.field_permissions_repository import (
     FieldPermissionsRepository,
     OnWriteConflict,
 )
+from fractal_repositories.utils.memoized_repository import MemoizedRepository
 
 # ---------------------------------------------------------------------------
 # Entities
@@ -503,3 +514,144 @@ def test_compare_and_swap_reports_a_lost_race(repo):
         expected=Specification.parse(name="first"),
     )
     assert repo.find_one(Specification.parse(id="1")).name == "winner"
+
+
+# ---------------------------------------------------------------------------
+# 9. A read mask never changes the entity it is handed
+# ---------------------------------------------------------------------------
+
+
+def test_masking_leaves_the_stored_entity_alone(inner, repo):
+    """The in-memory store hands out the object it keeps; masking that in place
+    blanked the stored value for everyone after the first restricted read."""
+    repo.add(SecureObject("1", secret="top_secret"))
+
+    assert repo.find_one(Specification.parse(id="1"), roles=["user"]).secret is None
+    list(repo.find(roles=["user"]))
+
+    assert inner.get("1").secret == "top_secret"
+    assert repo.find_one(Specification.parse(id="1"), roles=["admin"]).secret == (
+        "top_secret"
+    )
+
+
+def test_an_entity_with_nothing_to_hide_is_handed_on_as_is(repo):
+    repo.add(SecureObject("1", secret="top_secret"))
+
+    stored = repo.find_one(Specification.parse(id="1"))
+
+    assert repo.find_one(Specification.parse(id="1"), roles=["admin"]) is stored
+
+
+class _FreshCopies(InMemoryRepositoryMixin[SecureObject]):
+    """A store like a database: every read is a new object."""
+
+    entity = SecureObject
+
+    def find_one(self, specification):
+        return copy.deepcopy(super().find_one(specification))
+
+    def find(self, specification=None, **kwargs):
+        return [copy.deepcopy(e) for e in super().find(specification, **kwargs)]
+
+
+def test_a_restricted_read_does_not_poison_a_memoized_cache():
+    """The stack generated apps use: permissions over a memoizing cache over the
+    store. The cache hands out its own object, so an in-place mask blanked the
+    field for every later reader, and an admin editing another field then wrote
+    None over the real value."""
+    store = _FreshCopies()
+    store.add(SecureObject("1", name="Ann", secret="top_secret"))
+    repo = FieldPermissionsRepository(
+        MemoizedRepository(store), on_write_conflict=OnWriteConflict.PRESERVE
+    )
+    by_id = Specification.parse(id="1")
+    repo.find_one(by_id, roles=["admin"])  # warm the cache
+
+    assert repo.find_one(by_id, roles=["user"]).secret is None
+    assert repo.find_one(by_id, roles=["admin"]).secret == "top_secret"
+    assert repo.find_one(by_id).secret == "top_secret"
+
+    edited = repo.find_one(by_id, roles=["admin"])
+    edited.name = "Ann B"
+    repo.update(edited, roles=["admin"])
+
+    assert store.find_one(by_id).secret == "top_secret"
+
+
+# ---------------------------------------------------------------------------
+# 10. No filtering on a field the caller cannot read
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+def two(repo):
+    repo.add(SecureObject("1", name="Ann", secret="ann-secret"))
+    repo.add(SecureObject("2", name="Bob", secret="bob-secret"))
+    return repo
+
+
+@pytest.mark.parametrize(
+    "specification",
+    [
+        EqualsSpecification("secret", "ann-secret"),
+        RegexStringMatchSpecification("secret", "^b"),
+        AndSpecification(
+            [EqualsSpecification("name", "Ann"), EqualsSpecification("secret", "x")]
+        ),
+        OrSpecification(
+            [
+                RegexStringMatchSpecification("name", "zzz"),
+                RegexStringMatchSpecification("secret", "^a"),
+            ]
+        ),
+        NotSpecification(EqualsSpecification("secret", "x")),
+        EqualsSpecification("secret.inner", "x"),
+        EqualsSpecification("secret__inner", "x"),
+    ],
+    ids=["equals", "regex", "and", "or", "not", "dotted", "double-underscore"],
+)
+def test_a_filter_on_an_unreadable_field_is_refused(two, specification):
+    """Blanking the value is not enough when the caller can still filter on it:
+    which records come back tells it the value, and a prefix match recovers it
+    a character at a time."""
+    with pytest.raises(PermissionError, match="secret"):
+        list(two.find(specification, roles=["user"]))
+    with pytest.raises(PermissionError, match="secret"):
+        two.find_one(specification, roles=["user"])
+    with pytest.raises(PermissionError, match="secret"):
+        two.count(specification, roles=["user"])
+
+
+def test_a_caller_who_may_read_the_field_can_filter_on_it(two):
+    spec = EqualsSpecification("secret", "ann-secret")
+
+    assert [e.id for e in two.find(spec, roles=["admin"])] == ["1"]
+    assert two.find_one(spec, roles=["admin"]).id == "1"
+    assert two.count(spec, roles=["admin"]) == 1
+
+
+def test_internal_calls_are_not_checked(two):
+    spec = EqualsSpecification("secret", "ann-secret")
+
+    assert [e.id for e in two.find(spec)] == ["1"]
+    assert two.count(spec) == 1
+
+
+def test_filtering_on_readable_fields_still_works_for_everyone(two):
+    spec = EqualsSpecification("name", "Bob")
+
+    found = list(two.find(spec, roles=["user"]))
+
+    assert [(e.id, e.secret) for e in found] == [("2", None)]
+    assert two.count(spec, roles=["user"]) == 1
+
+
+def test_the_refusal_uses_the_configured_exception(inner):
+    repo = FieldPermissionsRepository(
+        inner, forbidden_exception_class=CustomForbiddenError
+    )
+    repo.add(SecureObject("1", secret="s"))
+
+    with pytest.raises(CustomForbiddenError):
+        list(repo.find(EqualsSpecification("secret", "s"), roles=["user"]))
