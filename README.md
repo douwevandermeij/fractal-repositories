@@ -133,6 +133,43 @@ The wrappers (`MemoizedRepository`, `CachedRepository`,
 support. A memoized wrapper evicts its cache entry when a swap loses, since what
 it holds describes a row someone else has since rewritten.
 
+## Add if absent
+
+`add()` does not check whether the id is taken: in memory and in SQLite it
+overwrites, in MongoDB it stores a second document with the same id. To record
+something **exactly once** -- an event counted for a metric, a message handled,
+a job claimed -- you need the existence check and the insert as one step.
+
+`add_if_absent()` adds the entity only if no entity with its id is stored yet:
+
+```python
+entry = LedgerEntry(id=f"{event.event_id}:{metric}", ...)
+if repo.add_if_absent(entry):
+    ...  # recorded now
+else:
+    ...  # already recorded by an earlier attempt: a retry, a redelivery, a replay
+```
+
+Give the record an id derived from what it records, and every later attempt to
+record the same thing finds it there. `False` is an outcome, not an error, and
+the stored entity is left untouched. Two attempts at the same moment cannot both
+win.
+
+| Backend | Supported | How |
+|---|---|---|
+| In-memory | yes | a lock; one process by definition |
+| File (JSON Lines) | yes | a lock, within this backend's single-writer contract |
+| SQLite | yes | `INSERT OR IGNORE` on the `id` primary key |
+| MongoDB | yes | a unique index on `id` (created on first use) turns the insert into the check |
+| Firestore, PostgreSQL, SQLAlchemy, Django, DuckDB | not yet | raises `NotImplementedError` |
+
+On MongoDB the unique index can only be created if the collection holds no
+duplicate ids yet; otherwise `add_if_absent()` raises a `RuntimeError` saying so.
+Use it on collections written through `add_if_absent()` from the start, such as a
+ledger. Test `supports_add_if_absent` when the same code runs against several
+backends. The wrappers pass it through; `FieldPermissionsRepository` checks write
+permissions on it exactly as on `add()`.
+
 ## Utilities
 
 ### FieldPermissionsRepository

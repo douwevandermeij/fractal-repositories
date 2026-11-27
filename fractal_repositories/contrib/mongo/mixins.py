@@ -55,6 +55,8 @@ class MongoRepositoryMixin(Repository[EntityType]):
     # A single update_one is atomic at the document level on every deployment,
     # standalone or replica set, so the filter-plus-write below is one step.
     supports_compare_and_swap = True
+    # Backed by a unique index on `id`, created on first use (see add_if_absent).
+    supports_add_if_absent = True
 
     #: Store datetimes as BSON dates rather than the ISO strings
     #: ``Entity.asdict()`` produces. Dates sort and compare correctly across
@@ -84,6 +86,7 @@ class MongoRepositoryMixin(Repository[EntityType]):
         if auto_migrate is not None:
             self.auto_migrate = auto_migrate
         self._migration_checked = False
+        self._unique_id_index = False
         if client := kwargs.get("client"):
             self.client = client
             self.db = client[kwargs.get("database", "")]
@@ -125,6 +128,37 @@ class MongoRepositoryMixin(Repository[EntityType]):
         # matched, not modified: a swap that writes back an identical document
         # is still a swap this caller won, and modified_count would report 0.
         return result.matched_count == 1
+
+    def add_if_absent(self, entity: EntityType) -> bool:
+        # Mongo has no insert-if-absent on a field other than _id; a unique
+        # index on `id` turns the insert itself into the existence check, so
+        # two concurrent attempts cannot both succeed.
+        from pymongo.errors import DuplicateKeyError
+
+        self._ensure_migrated()
+        self._ensure_unique_id_index()
+        try:
+            self.collection.insert_one(self._to_document(entity))
+        except DuplicateKeyError:
+            return False
+        return True
+
+    def _ensure_unique_id_index(self) -> None:
+        if self._unique_id_index:
+            return
+        from pymongo.errors import DuplicateKeyError, OperationFailure
+
+        try:
+            # Idempotent: creating an index that exists with the same options
+            # is a no-op on the server.
+            self.collection.create_index("id", unique=True, name="id_unique")
+        except (DuplicateKeyError, OperationFailure) as e:
+            raise RuntimeError(
+                f"add_if_absent needs a unique index on `id` in collection "
+                f"{self.collection.name!r}, and it could not be created "
+                f"(duplicate ids already stored?): {e}"
+            ) from e
+        self._unique_id_index = True
 
     def remove_one(self, specification: Specification):
         self.collection.delete_one(self._build(specification))

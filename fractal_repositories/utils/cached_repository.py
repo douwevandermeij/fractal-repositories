@@ -36,6 +36,16 @@ class CachedRepository(Repository[EntityType]):
             self.cache_repository.update(entity, upsert=True)
         return swapped
 
+    @property
+    def supports_add_if_absent(self) -> bool:  # type: ignore[override]
+        return self.main_repository.supports_add_if_absent
+
+    def add_if_absent(self, entity: EntityType) -> bool:
+        added = self.main_repository.add_if_absent(entity)
+        if added:
+            self.cache_repository.update(entity, upsert=True)
+        return added
+
     def remove_one(self, specification: Specification):
         self.main_repository.remove_one(specification)
         self.cache_repository.remove_one(specification)

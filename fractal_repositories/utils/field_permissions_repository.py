@@ -387,6 +387,32 @@ class FieldPermissionsRepository(Repository[EntityType]):
         """
         return self._inner.compare_and_swap(entity, expected=expected)
 
+    @property
+    def supports_add_if_absent(self) -> bool:  # type: ignore[override]
+        return self._inner.supports_add_if_absent
+
+    def add_if_absent(self, entity, *, roles=None) -> bool:
+        """
+        Add an entity only if none with its id is stored yet.
+
+        Field permissions apply exactly as on :meth:`add`: this is a caller's
+        values entering the store, just with an existence check attached.
+
+        Args:
+            entity: The entity to add.
+            roles: Caller's roles. Pass ``None`` to skip validation (internal use).
+
+        Returns:
+            True when the entity was added, False when one with its id existed.
+        """
+        if roles is not None:
+            perms = self._field_permissions
+            if self._on_write_conflict == OnWriteConflict.PRESERVE:
+                entity = self._apply_write_preserve(entity, perms, roles)
+            else:
+                self._validate_write_permissions(entity, perms, roles)
+        return self._inner.add_if_absent(entity)
+
     def remove_one(self, specification):
         """
         Remove a single entity matching the specification. Delegates directly to the inner repository.

@@ -128,6 +128,15 @@ class MigratingRepository(Repository[EntityType]):
     def compare_and_swap(self, entity: EntityType, *, expected: Specification) -> bool:
         return self.primary.compare_and_swap(entity, expected=expected)
 
+    @property
+    def supports_add_if_absent(self) -> bool:  # type: ignore[override]
+        return self.primary.supports_add_if_absent
+
+    def add_if_absent(self, entity: EntityType) -> bool:
+        # Checked against the new store only, like every write here: an entity
+        # still only in `source` is not "present" until backfilled.
+        return self.primary.add_if_absent(entity)
+
     def remove_one(self, specification: Specification):
         self.primary.remove_one(specification)
 

@@ -15,6 +15,7 @@ class InMemoryRepositoryMixin(Repository[EntityType]):
     # One process by definition, so the lock below is all the indivisibility
     # this backend needs.
     supports_compare_and_swap = True
+    supports_add_if_absent = True
 
     def __init__(self, *args, **kwargs) -> None:
         super(InMemoryRepositoryMixin, self).__init__(*args, **kwargs)
@@ -37,6 +38,13 @@ class InMemoryRepositoryMixin(Repository[EntityType]):
             if current is None or not expected.is_satisfied_by(current):
                 return False
             self.entities[entity.id] = entity
+            return True
+
+    def add_if_absent(self, entity: EntityType) -> bool:
+        with self._swap_lock:
+            if entity.id in self.entities:
+                return False
+            self.add(entity)
             return True
 
     def remove_one(self, specification: Specification):
