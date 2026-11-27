@@ -109,6 +109,17 @@ class FileRepositoryMixin(RootDirMixin, InMemoryRepositoryMixin[EntityType]):
             return self.add(entity)
         raise self._object_not_found()
 
+    def add_if_absent(self, entity: EntityType) -> bool:
+        # Reads the file, like compare_and_swap below and for the same reason;
+        # indivisible between threads, which is this backend's contract.
+        with self._swap_lock:
+            try:
+                self.find_one(Specification.parse(id=entity.id))
+                return False
+            except ObjectNotFoundException:
+                self.add(entity)
+                return True
+
     def compare_and_swap(self, entity: EntityType, *, expected: Specification) -> bool:
         # Not inherited from the in-memory mixin: there `self.entities` is the
         # store, here it is a write-through shadow of the file, so the check has

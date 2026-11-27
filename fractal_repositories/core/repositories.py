@@ -194,6 +194,12 @@ class WriteRepository(Generic[EntityType], ABC):
     #: the caller stops watching for the very race it believes it ruled out.
     supports_compare_and_swap: bool = False
 
+    #: Whether :meth:`add_if_absent` is honoured by this backend: the existence
+    #: check and the insert are one indivisible step. Same reasoning as
+    #: :attr:`supports_compare_and_swap`: a backend that cannot do that raises
+    #: rather than quietly degrading to a check followed by an add.
+    supports_add_if_absent: bool = False
+
     @abstractmethod
     def add(self, entity: EntityType) -> EntityType:
         """
@@ -287,6 +293,46 @@ class WriteRepository(Generic[EntityType], ABC):
         raise NotImplementedError(
             f"{type(self).__name__} does not implement compare_and_swap; "
             "check supports_compare_and_swap before calling it."
+        )
+
+    def add_if_absent(self, entity: EntityType) -> bool:
+        """
+        Add ``entity``, but only if no entity with its id is stored yet.
+
+        The existence check and the insert are one indivisible step. That is
+        what makes it the building block for recording something exactly once:
+        give the record an id derived from what it records (an event id, say),
+        and a second attempt to record the same thing -- a retry, a redelivery,
+        a replay -- finds it there and adds nothing. Under :meth:`add` the second
+        attempt overwrites the first or, on some backends, stores a duplicate.
+
+        Not abstract, so an existing implementation keeps working untouched; it
+        simply does not offer the guarantee, and says so through
+        :attr:`supports_add_if_absent`.
+
+        Args:
+            entity: The entity to add, carrying the id that must not exist yet
+
+        Returns:
+            True when the entity was added. False when an entity with that id
+            was already there; the stored one is left exactly as it was.
+
+            False is an outcome, not an error: "already recorded" is the answer
+            the caller asked for.
+
+        Raises:
+            NotImplementedError: If the backend cannot make the check and the
+                insert indivisible. Test :attr:`supports_add_if_absent` first
+                when the same code runs against more than one backend.
+
+        Example:
+            entry = LedgerEntry(id=f"{event.event_id}:{metric}", ...)
+            if repo.add_if_absent(entry):
+                ...  # first time this event is recorded for this metric
+        """
+        raise NotImplementedError(
+            f"{type(self).__name__} does not implement add_if_absent; "
+            "check supports_add_if_absent before calling it."
         )
 
     @abstractmethod

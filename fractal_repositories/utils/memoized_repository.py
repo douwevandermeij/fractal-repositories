@@ -72,6 +72,14 @@ class MemoizedRepository(Repository[EntityType]):
             self.invalidate(entity.id)
         return swapped
 
+    @property
+    def supports_add_if_absent(self) -> bool:  # type: ignore[override]
+        return self._inner.supports_add_if_absent
+
+    def add_if_absent(self, entity: EntityType) -> bool:
+        # Like add: the cache is left alone and fills on the next read.
+        return self._inner.add_if_absent(entity)
+
     def invalidate(self, entity_id: str) -> None:
         """Remove a single entry from the in-process cache by entity ID.
 

@@ -75,6 +75,7 @@ class SqliteRepositoryMixin(RootDirMixin, Repository[EntityType]):
     # SQLite serializes writers through its own file locks, across processes as
     # well as threads, so the check and the write below really are one step.
     supports_compare_and_swap = True
+    supports_add_if_absent = True
 
     # Deserialization errors that mean "this row is stale relative to the current
     # entity schema" rather than "from_dict has a bug": JSON that is not a
@@ -238,6 +239,17 @@ class SqliteRepositoryMixin(RootDirMixin, Repository[EntityType]):
             # Indexed id lookup; raises ObjectNotFoundException if absent.
             self.find_one(Specification.parse(id=entity.id))
         return self.add(entity)
+
+    def add_if_absent(self, entity: EntityType) -> bool:
+        serialized = json.dumps(entity.asdict(), cls=EnhancedEncoder)
+        with self._connect() as conn:
+            # id is the PRIMARY KEY, so the check and the insert are one
+            # statement; a row already there makes it a no-op.
+            cursor = conn.execute(
+                f'INSERT OR IGNORE INTO "{self._table}" (id, data) VALUES (?, ?)',
+                (str(entity.id), serialized),
+            )
+            return cursor.rowcount == 1
 
     def compare_and_swap(self, entity: EntityType, *, expected: Specification) -> bool:
         serialized = json.dumps(entity.asdict(), cls=EnhancedEncoder)
